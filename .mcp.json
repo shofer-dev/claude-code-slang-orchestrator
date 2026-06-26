@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "slang-workflows": {
+      "command": "npx",
+      "args": ["tsx", "${CLAUDE_PLUGIN_ROOT}/server/src/main.ts"]
+    }
+  }
+}

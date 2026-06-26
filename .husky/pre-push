@@ -1,0 +1,12 @@
+# Pre-push gate: type-check + full test suite must pass before any push.
+# A single failure blocks the push. (Active when slang-orchestrator is its own repo;
+# see package.json "prepare" — inert inside the monorepo.)
+cd "$(dirname "$0")/../server" || exit 1
+
+echo "[pre-push] type-checking…"
+pnpm typecheck || { echo "[pre-push] ✗ typecheck failed — push blocked"; exit 1; }
+
+echo "[pre-push] running tests…"
+pnpm test || { echo "[pre-push] ✗ tests failed — push blocked"; exit 1; }
+
+echo "[pre-push] ✓ all checks passed"

@@ -1,0 +1,17 @@
+{
+  "name": "slang-orchestrator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Claude Code plugin: deterministic .slang multi-agent workflow orchestrator.",
+  "license": "MIT",
+  "scripts": {
+    "typecheck": "cd server && pnpm typecheck",
+    "test": "cd server && pnpm test",
+    "check": "pnpm typecheck && pnpm test",
+    "_comment_prepare": "Install the husky pre-push hook ONLY when this folder is its own git repo (standalone publish). In the monorepo there is no .git here, so husky is skipped and the shared monorepo hooks are never touched.",
+    "prepare": "[ -e .git ] && husky || true"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7"
+  }
+}

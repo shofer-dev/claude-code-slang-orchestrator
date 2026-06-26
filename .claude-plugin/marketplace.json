@@ -1,0 +1,13 @@
+{
+  "name": "shofer",
+  "owner": { "name": "shofer.dev" },
+  "plugins": [
+    {
+      "name": "slang-workflows",
+      "source": "./",
+      "description": "Run deterministic, .slang-driven multi-agent workflows inside Claude Code. A non-LLM state machine in an MCP server coordinates agents (via the Agent SDK); the top-level session triggers and observes runs.",
+      "homepage": "https://github.com/shofer-dev",
+      "repository": "https://github.com/shofer-dev/claude-code-slang-orchestrator"
+    }
+  ]
+}

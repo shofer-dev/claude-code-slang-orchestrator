@@ -1,0 +1,11 @@
+# Dependencies (reinstall with `pnpm install` in server/)
+node_modules/
+
+# pnpm lockfile — omitted intentionally: this environment installs from a mix of the
+# internal proxy and public npm, so the lockfile is not portable. Re-resolve on install.
+pnpm-lock.yaml
+
+# Build / tooling artifacts
+dist/
+*.tsbuildinfo
+.DS_Store
