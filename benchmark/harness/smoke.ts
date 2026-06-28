@@ -31,11 +31,14 @@ const onEscalate = async (req: EscalationRequest): Promise<string> => {
   return JSON.stringify(ans)
 }
 
+const maxRounds = process.env.SLANG_MAX_ROUNDS ? Number(process.env.SLANG_MAX_ROUNDS) : undefined
+const onEvent = (e: any) => console.error(`[r${e.round}] ${e.kind}${e.agent ? " @" + e.agent : ""}${e.detail ? " :: " + String(e.detail).slice(0, 120) : ""}`)
+
 void (async () => {
   const t0 = Date.now()
   try {
     const dispatcher = new AgentSdkDispatcher()
-    const { result, flowState } = await runWorkflow(flow, params, dispatcher, { cwd, defaultModel: "sonnet", onEscalate })
+    const { result, flowState } = await runWorkflow(flow, params, dispatcher, { cwd, defaultModel: "sonnet", onEscalate, onEvent, maxRounds })
     console.log("=== RESULT ===")
     console.log(JSON.stringify(result, null, 2))
     console.log("=== STATE (status/round/agents) ===")
