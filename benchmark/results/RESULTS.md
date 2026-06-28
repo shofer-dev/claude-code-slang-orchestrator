@@ -40,6 +40,38 @@ The executor's round cap *is* the reliability backstop working as designed — i
 terminated deterministically (`budget_exceeded`) instead of hanging forever. But the
 workflow did not succeed. A buggy/fragile `.slang` deterministically fails.
 
+## Hardening pass (making implement-feature execute reliably)
+
+**The executor coordination is correct.** A deterministic `FakeDispatcher` repro
+(`harness/repro-handshake.ts`) replaying the *intended* agent outputs converges in 8
+rounds; a stress harness (`harness/stress-handshake.ts`) shows it also converges under
+realistic reject-then-approve review cycles and **terminates** (not hangs) when a
+reviewer never approves. So the pre-fix failures were **not** executor coordination bugs.
+
+**Two real executor/dispatcher bugs found + fixed (with tests):**
+1. **`budget: rounds(N)` was dead-wired.** Parsed but never read — every flow ran to the
+   hard `DEFAULT_MAX_ROUNDS=100`. Now plumbed (`opts.maxRounds > flow budget > default`).
+2. **No per-stake timeout.** `runStake` iterated the SDK stream uncapped, so a hung agent
+   session hung the whole flow forever (run 2's 15-min hang). Added an AbortController +
+   300s default cap; on timeout the stake errors and the executor proceeds.
+
+**A workflow design fragility:** `progress_update` and `done_signal` share the
+`{done,summary}` schema, so a Developer that sets `done:true` early **bypasses the review
+loop** (the "skip review" failure mode) — deterministically reproduced.
+
+**Mode-enforcement gap (from the real diagnostic run):** the `architect` mode's write
+restriction (shofer: `.md`-only) is **not enforced** in the claude-code mapping — the
+real Architect agent wrote `format-duration.ts` and *implemented the feature itself* during
+`create_design`, instead of delegating. The `write` tool-group maps to Claude Code's full
+Write/Edit. This corrupts the delegation premise (still converged once anyway, but it's a
+real mapping bug).
+
+**Post-fix outcome:** with budget + timeout in place, `implement-feature` **always
+terminates**, and a real run **converged** in the canonical 8-round path (all agents
+committed, 307s). Convergence is now **probabilistic** — it depends on the real agents
+emitting the right contract signals. Convergence-rate measurement (N post-fix runs):
+_see `rate.csv` — pending._
+
 ### Implication for the benchmark
 
 `implement-feature` is **not benchmark-ready** until its convergence + the budget
