@@ -216,3 +216,23 @@ test("agent `deny: [...]` parses (native + MCP) and reaches the dispatcher as di
 	await runWorkflow(flow, {}, cap as any, { cwd: "/tmp" })
 	assert.deepEqual(seen, ["Write", "mcp__foo"])
 })
+
+test("agent `write_paths: [...]` parses and reaches the dispatcher", async () => {
+	const flow = flowFrom(`flow "w" {
+		agent A {
+			role: "x"
+			tools: [read, write]
+			write_paths: ["**/*.md"]
+			deny: [Bash]
+			stake s(t: "go") -> @out
+				output: { ok: "boolean" }
+			commit
+		}
+		converge when: @A.committed
+		budget: rounds(5)
+	}`)
+	let seen: string[] | undefined
+	const cap = { async runStake(req: any) { seen = req.writePaths; return new (await import("../src/dispatcher.js")).FakeDispatcher(() => JSON.stringify({ ok: true })).runStake(req) } }
+	await runWorkflow(flow, {}, cap as any, { cwd: "/tmp" })
+	assert.deepEqual(seen, ["**/*.md"])
+})

@@ -374,6 +374,23 @@ class Parser {
 				this.expect(TokenType.RBracket)
 			} else if (
 				this.check(TokenType.Ident) &&
+				this.peek().value === "write_paths" &&
+				this.tokens[this.pos + 1]?.type === TokenType.Colon
+			) {
+				// extension: 'write_paths: ["**/*.md", ...]' — restrict Write/Edit to these
+				// path globs (others denied via the SDK's canUseTool).
+				this.advance() // "write_paths"
+				this.expect(TokenType.Colon)
+				this.expect(TokenType.LBracket)
+				meta.writePaths = []
+				const wpTok = (): string => (this.check(TokenType.String) ? this.advance() : this.expect(TokenType.Ident)).value
+				if (!this.check(TokenType.RBracket)) {
+					meta.writePaths.push(wpTok())
+					while (this.match(TokenType.Comma)) meta.writePaths.push(wpTok())
+				}
+				this.expect(TokenType.RBracket)
+			} else if (
+				this.check(TokenType.Ident) &&
 				this.peek().value === "mode" &&
 				this.tokens[this.pos + 1]?.type === TokenType.Colon
 			) {

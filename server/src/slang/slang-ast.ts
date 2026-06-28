@@ -120,6 +120,11 @@ export interface AgentMeta {
 	/** Slang `mode: "slug"` — agent identity hint. Stored; the port maps it to tool sets /
 	 * system prompt rather than enforcing shofer-specific mode behavior. */
 	mode?: string
+	/** Slang `write_paths: ["glob", ...]` — restrict this agent's Write/Edit to paths
+	 * matching these globs (others denied via the SDK's canUseTool). Note: gates Write/Edit
+	 * only — an agent that also has Bash can write via the shell, so pair with `deny: [Bash]`
+	 * (or the native sandbox) for true confinement. */
+	writePaths?: string[]
 	retry?: number
 	/**
 	 * Slang `context { ... }` block — controls ambient project context injected

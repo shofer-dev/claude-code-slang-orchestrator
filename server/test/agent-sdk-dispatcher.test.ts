@@ -139,3 +139,31 @@ test("communicates the time budget to the agent + maps deny -> disallowedTools",
 	// deny -> SDK disallowedTools (native + MCP), so those tools are unavailable.
 	assert.deepEqual(calls[0]!.options!.disallowedTools, ["Write", "Edit", "mcp__foo"])
 })
+
+test("globToRegExp matches ** and * for write_paths", async () => {
+	const { globToRegExp } = await import("../src/agent-sdk-dispatcher.js")
+	assert.ok(globToRegExp("**/*.md").test("/a/b/c.md"))
+	assert.ok(!globToRegExp("**/*.md").test("/a/b/c.ts"))
+	assert.ok(globToRegExp("docs/**").test("docs/x/y.ts"))
+	assert.ok(!globToRegExp("docs/**").test("src/x.ts"))
+})
+
+test("write_paths: scopes Write/Edit via canUseTool + drops them from allowedTools (non-bypass)", async () => {
+	const { fn, calls } = fakeQuery([initMsg("S1"), successMsg("S1", "ok")])
+	await new AgentSdkDispatcher({}, fn).runStake({
+		...baseReq,
+		allowedTools: ["Read", "Write", "Edit"],
+		writePaths: ["**/*.md"],
+	})
+	const o = calls[0]!.options!
+	assert.deepEqual(o.allowedTools, ["Read"]) // Write/Edit removed → routed through canUseTool
+	assert.equal(o.permissionMode, "default")
+	assert.notEqual(o.allowDangerouslySkipPermissions, true)
+	assert.equal(typeof o.canUseTool, "function")
+	const deny = await o.canUseTool!("Write", { file_path: "/x/foo.ts" }, {} as any)
+	const allow = await o.canUseTool!("Write", { file_path: "/x/plan.md" }, {} as any)
+	const other = await o.canUseTool!("Read", { file_path: "/x/foo.ts" }, {} as any)
+	assert.equal(deny.behavior, "deny")
+	assert.equal(allow.behavior, "allow")
+	assert.equal(other.behavior, "allow")
+})

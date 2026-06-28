@@ -351,6 +351,7 @@ async function runStakeWithRetries(
 			sessionId: sessions.get(name),
 			allowedTools,
 			disallowedTools: decl.meta.deny,
+			writePaths: decl.meta.writePaths,
 			model,
 			systemPrompt: decl.meta.role,
 			cwd: opts.cwd,
