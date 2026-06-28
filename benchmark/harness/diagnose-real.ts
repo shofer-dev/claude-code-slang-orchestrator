@@ -38,9 +38,13 @@ class Tracer implements Dispatcher {
 const onEscalate = async (_r: EscalationRequest) => JSON.stringify({ decision: "I approve", feedback: "", instructions: "" })
 const onEvent = (e: any) => { if (["committed", "converged", "budget", "deadlock", "error", "escalate"].includes(e.kind)) console.error(`   [r${e.round}] ${e.kind}${e.agent ? " @" + e.agent : ""}`) }
 
+// The SDK auto-resolves a bundled `claude` that can mismatch this host's libc; pin the
+// known-good system binary (CLAUDE_BIN) when provided.
+const claudeBin = process.env.CLAUDE_BIN
 void (async () => {
   const t0 = Date.now()
-  const { result } = await runWorkflow(flow, params, new Tracer(new AgentSdkDispatcher()),
+  const inner = new AgentSdkDispatcher(claudeBin ? { pathToClaudeCodeExecutable: claudeBin } : {})
+  const { result } = await runWorkflow(flow, params, new Tracer(inner),
     { cwd, defaultModel: "sonnet", onEscalate, onEvent })
   const r = result as any
   console.error(`=== STATUS: ${r.status} rounds:${r.rounds} elapsed:${((Date.now() - t0) / 1000).toFixed(0)}s`)

@@ -72,6 +72,30 @@ committed, 307s). Convergence is now **probabilistic** — it depends on the rea
 emitting the right contract signals. Convergence-rate measurement (N post-fix runs):
 _see `rate.csv` — pending._
 
+## Reliability fixes (language/executor) + a tool-control mechanism
+
+Built to make `implement-feature` execute reliably (all tested, 48 pass):
+- **Budget honored** + **per-stake timeout** → the flow always *terminates* (no more
+  100-round livelocks / 15-min hangs).
+- **`deny: [...]`** → SDK `disallowedTools` (native + MCP: `mcp__server__tool` /
+  `mcp__server` / `mcp__*`). The general "which tools can/can't this agent use" control.
+- **`write_paths: [glob]`** → argument-scoped Write/Edit via the SDK's `canUseTool`.
+- **Stake time-budget** is communicated to the agent (soft deadline) alongside the abort.
+
+**Root cause of run 1 (diagnosed):** the real **Architect implements the feature itself**
+during `create_design`, because shofer's `architect` mode (`.md`-only write) is a no-op in
+the port. The hardened workflow (`benchmark/workflows/implement-feature.slang`) blocks that.
+
+**Environmental caveat on `write_paths`/`canUseTool` (this host):** the SDK's `canUseTool`
+*control-protocol* launch is **unreliable here** — `create_design` consistently fails with
+"native binary failed to launch (musl on glibc)" for **both** the bundled CLI (musl) and the
+system `claude 2.1.195` (newer protocol than SDK `0.3.187`). The **bypass-mode** path
+(`deny:` / normal stakes) is unaffected and reliable (pipeline + the original
+`implement-feature` converge). So on this host the **robust** way to force Architect
+delegation is **`deny: [Write, Edit, Bash]`** (pure coordinator; design authored by a
+delegate) — the `write_paths` approach is correct + unit/probe/`wptest`-verified but blocked
+here by the SDK control-protocol/libc/version mismatch.
+
 ### Implication for the benchmark
 
 `implement-feature` is **not benchmark-ready** until its convergence + the budget
