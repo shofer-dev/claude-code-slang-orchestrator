@@ -350,6 +350,7 @@ async function runStakeWithRetries(
 			prompt,
 			sessionId: sessions.get(name),
 			allowedTools,
+			disallowedTools: decl.meta.deny,
 			model,
 			systemPrompt: decl.meta.role,
 			cwd: opts.cwd,

@@ -113,6 +113,13 @@ export interface AgentMeta {
 	 */
 	apiConfiguration?: string
 	tools?: string[]
+	/** Slang `deny: [...]` — tool names this agent may NOT use: native (`Write`, `Bash`)
+	 * or MCP specs (`mcp__server__tool` / `mcp__server` / `mcp__*`). Compiles to the SDK's
+	 * `disallowedTools`; deny wins over the `tools:` allow-list. */
+	deny?: string[]
+	/** Slang `mode: "slug"` — agent identity hint. Stored; the port maps it to tool sets /
+	 * system prompt rather than enforcing shofer-specific mode behavior. */
+	mode?: string
 	retry?: number
 	/**
 	 * Slang `context { ... }` block — controls ambient project context injected

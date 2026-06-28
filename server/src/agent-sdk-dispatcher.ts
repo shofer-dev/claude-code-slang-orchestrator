@@ -45,6 +45,9 @@ export class AgentSdkDispatcher implements Dispatcher {
 			allowDangerouslySkipPermissions: true,
 		}
 		if (req.model) options.model = req.model
+		// Per-agent tool deny-list — removes named tools entirely (native, or MCP via
+		// `mcp__server__tool` / `mcp__server` / `mcp__*`). Deny wins over the allow-list.
+		if (req.disallowedTools?.length) options.disallowedTools = req.disallowedTools
 		// Append the agent role to Claude Code's default system prompt (don't replace it).
 		if (req.systemPrompt) options.systemPrompt = { type: "preset", preset: "claude_code", append: req.systemPrompt }
 		if (req.sessionId) options.resume = req.sessionId
@@ -60,13 +63,19 @@ export class AgentSdkDispatcher implements Dispatcher {
 		if (timeoutMs > 0) options.abortController = ac
 		const timer = timeoutMs > 0 ? setTimeout(() => ac.abort(), timeoutMs) : undefined
 
+		// Make the agent aware of its time budget so it can plan to finish in time (the
+		// abort above is a hard backstop; this is the soft, cooperative deadline).
+		const prompt = timeoutMs > 0
+			? `${req.prompt}\n\n[Time budget: you have about ${Math.round(timeoutMs / 1000)}s of wall-clock time to finish this task and return your result. Work efficiently; if you are running low on time, stop and return your best result rather than continuing past the budget.]`
+			: req.prompt
+
 		let sessionId = req.sessionId ?? ""
 		let result = ""
 		let structured: unknown
 		let error: string | undefined
 
 		try {
-			for await (const msg of this.queryFn({ prompt: req.prompt, options })) {
+			for await (const msg of this.queryFn({ prompt, options })) {
 				if (msg.type === "system" && msg.subtype === "init") {
 					sessionId = msg.session_id
 				} else if (msg.type === "result") {

@@ -196,3 +196,23 @@ test("explicit opts.maxRounds overrides the flow budget", async () => {
 	assert.equal(result.status, "budget_exceeded")
 	assert.ok(result.rounds <= 2, `expected rounds<=2 (opts override), got ${result.rounds}`)
 })
+
+test("agent `deny: [...]` parses (native + MCP) and reaches the dispatcher as disallowedTools", async () => {
+	const flow = flowFrom(`flow "d" {
+		agent A {
+			role: "x"
+			tools: [read, write]
+			deny: [Write, mcp__foo]
+			stake s(t: "go") -> @out
+				output: { ok: "boolean" }
+			commit
+		}
+		converge when: @A.committed
+		budget: rounds(5)
+	}`)
+	assert.deepEqual(flow.agents?.[0]?.meta.deny ?? (flow as any).body.find((b: any) => b.type === "AgentDecl")?.meta.deny, ["Write", "mcp__foo"])
+	let seen: string[] | undefined
+	const cap = { async runStake(req: any) { seen = req.disallowedTools; return new (await import("../src/dispatcher.js")).FakeDispatcher(() => JSON.stringify({ ok: true })).runStake(req) } }
+	await runWorkflow(flow, {}, cap as any, { cwd: "/tmp" })
+	assert.deepEqual(seen, ["Write", "mcp__foo"])
+})

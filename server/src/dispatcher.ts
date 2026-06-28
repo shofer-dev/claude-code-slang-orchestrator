@@ -20,6 +20,9 @@ export interface StakeRequest {
 	sessionId?: string
 	/** Claude Code tool names this agent may use (from the tool-group mapping). */
 	allowedTools: string[]
+	/** Tool names this agent may NOT use (native, or MCP via `mcp__server__tool` /
+	 * `mcp__server` / `mcp__*`). Deny wins over `allowedTools`. From the agent's `deny:`. */
+	disallowedTools?: string[]
 	/** Model alias or full id (`sonnet` / `opus` / `haiku` / id). */
 	model?: string
 	/** Role/system prompt layered onto the base. */

@@ -41,6 +41,7 @@ test("maps a full StakeRequest onto SDK Options", async () => {
 		model: "sonnet",
 		systemPrompt: "You are X.",
 		outputJsonSchema: schema,
+		timeoutMs: 0, // no time-budget note: assert the prompt passes through verbatim
 	})
 	const opts = calls[0]!.options!
 	assert.equal(calls[0]!.prompt, "do the thing")
@@ -123,4 +124,18 @@ test("runStake aborts a hung session via per-stake timeout", async () => {
 	const res = await d.runStake({ ...baseReq, timeoutMs: 150 })
 	assert.ok(Date.now() - t0 < 5_000, "should return promptly on timeout, not hang")
 	assert.match(res.error ?? "", /timed out/)
+})
+
+test("communicates the time budget to the agent + maps deny -> disallowedTools", async () => {
+	const { fn, calls } = fakeQuery([initMsg("S1"), successMsg("S1", "ok")])
+	await new AgentSdkDispatcher({}, fn).runStake({
+		...baseReq,
+		timeoutMs: 90_000,
+		disallowedTools: ["Write", "Edit", "mcp__foo"],
+	})
+	// Agent is told its budget (soft, cooperative deadline alongside the hard abort).
+	assert.match(calls[0]!.prompt, /^do the thing/)
+	assert.match(calls[0]!.prompt, /Time budget.*90s/)
+	// deny -> SDK disallowedTools (native + MCP), so those tools are unavailable.
+	assert.deepEqual(calls[0]!.options!.disallowedTools, ["Write", "Edit", "mcp__foo"])
 })

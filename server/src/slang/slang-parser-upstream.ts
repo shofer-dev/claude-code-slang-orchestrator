@@ -357,13 +357,30 @@ class Parser {
 				this.expect(TokenType.RBracket)
 			} else if (
 				this.check(TokenType.Ident) &&
+				this.peek().value === "deny" &&
+				this.tokens[this.pos + 1]?.type === TokenType.Colon
+			) {
+				// extension: 'deny: [Tool, mcp__server, ...]' — tools this agent may NOT use
+				// (native names or MCP specs). Compiles to the SDK's disallowedTools.
+				this.advance() // "deny"
+				this.expect(TokenType.Colon)
+				this.expect(TokenType.LBracket)
+				meta.deny = []
+				const denyTok = (): string => (this.check(TokenType.String) ? this.advance() : this.expect(TokenType.Ident)).value
+				if (!this.check(TokenType.RBracket)) {
+					meta.deny.push(denyTok())
+					while (this.match(TokenType.Comma)) meta.deny.push(denyTok())
+				}
+				this.expect(TokenType.RBracket)
+			} else if (
+				this.check(TokenType.Ident) &&
 				this.peek().value === "mode" &&
 				this.tokens[this.pos + 1]?.type === TokenType.Colon
 			) {
 				// extension: 'mode: "slug"' in agent config
 				this.advance() // "mode"
 				this.expect(TokenType.Colon)
-				;(meta as any).mode = this.expect(TokenType.String).value
+				meta.mode = this.expect(TokenType.String).value
 			} else if (this.check(TokenType.Retry)) {
 				this.advance()
 				this.expect(TokenType.Colon)
