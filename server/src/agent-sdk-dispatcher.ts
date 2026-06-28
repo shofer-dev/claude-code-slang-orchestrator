@@ -21,6 +21,9 @@ import type { Dispatcher, StakeRequest, StakeResult } from "./dispatcher.js"
  */
 export type QueryFn = (args: { prompt: string; options?: Options }) => AsyncIterable<SDKMessage>
 
+/** Default per-stake wall-clock cap (ms): aborts an agent session that never terminates. */
+export const DEFAULT_STAKE_TIMEOUT_MS = 300_000
+
 export interface AgentSdkDispatcherOptions {
 	/** Override the Claude Code executable the SDK spawns (defaults to auto-resolution). */
 	pathToClaudeCodeExecutable?: string
@@ -48,23 +51,38 @@ export class AgentSdkDispatcher implements Dispatcher {
 		if (req.outputJsonSchema) options.outputFormat = { type: "json_schema", schema: req.outputJsonSchema }
 		if (this.sdk.pathToClaudeCodeExecutable) options.pathToClaudeCodeExecutable = this.sdk.pathToClaudeCodeExecutable
 
+		// Per-stake wall-clock cap: an agent session that never produces a terminal result
+		// (tool loop, stuck turn) would otherwise hang the whole flow forever. On timeout we
+		// abort the query and report an error; the executor then retries / fails the stake
+		// deterministically instead of blocking. Default generous; opt out with timeoutMs<=0.
+		const timeoutMs = req.timeoutMs ?? DEFAULT_STAKE_TIMEOUT_MS
+		const ac = new AbortController()
+		if (timeoutMs > 0) options.abortController = ac
+		const timer = timeoutMs > 0 ? setTimeout(() => ac.abort(), timeoutMs) : undefined
+
 		let sessionId = req.sessionId ?? ""
 		let result = ""
 		let structured: unknown
 		let error: string | undefined
 
-		for await (const msg of this.queryFn({ prompt: req.prompt, options })) {
-			if (msg.type === "system" && msg.subtype === "init") {
-				sessionId = msg.session_id
-			} else if (msg.type === "result") {
-				sessionId = msg.session_id
-				if (msg.subtype === "success") {
-					result = msg.result
-					if (msg.structured_output !== undefined) structured = msg.structured_output
-				} else {
-					error = msg.subtype
+		try {
+			for await (const msg of this.queryFn({ prompt: req.prompt, options })) {
+				if (msg.type === "system" && msg.subtype === "init") {
+					sessionId = msg.session_id
+				} else if (msg.type === "result") {
+					sessionId = msg.session_id
+					if (msg.subtype === "success") {
+						result = msg.result
+						if (msg.structured_output !== undefined) structured = msg.structured_output
+					} else {
+						error = msg.subtype
+					}
 				}
 			}
+		} catch (e) {
+			error = ac.signal.aborted ? `stake timed out after ${timeoutMs}ms` : (e as Error).message
+		} finally {
+			if (timer) clearTimeout(timer)
 		}
 
 		if (!result && structured === undefined && !error) error = "no result message returned"

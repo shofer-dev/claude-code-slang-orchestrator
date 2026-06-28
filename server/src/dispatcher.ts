@@ -36,6 +36,8 @@ export interface StakeRequest {
 	 * does not expose for custom tools).
 	 */
 	outputJsonSchema?: Record<string, unknown>
+	/** Per-stake wall-clock cap (ms). Omitted ⇒ the dispatcher's default; <=0 ⇒ no cap. */
+	timeoutMs?: number
 }
 
 export interface StakeResult {

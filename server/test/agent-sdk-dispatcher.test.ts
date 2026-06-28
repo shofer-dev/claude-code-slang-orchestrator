@@ -106,3 +106,21 @@ test("reports an error when no result message arrives", async () => {
 	assert.match(out.error ?? "", /no result message/)
 	assert.equal(out.sessionId, "S3")
 })
+
+test("runStake aborts a hung session via per-stake timeout", async () => {
+	// A queryFn that yields init then hangs — but honors abortController like the real SDK.
+	const hung = async function* (args: any) {
+		yield { type: "system", subtype: "init", session_id: "S-hang" } as any
+		const signal: AbortSignal | undefined = args.options?.abortController?.signal
+		await new Promise<void>((resolve, reject) => {
+			const t = setTimeout(resolve, 10_000)
+			signal?.addEventListener("abort", () => { clearTimeout(t); reject(new Error("aborted")) })
+		})
+		yield { type: "result", subtype: "success", session_id: "S-hang", result: "late" } as any
+	}
+	const d = new AgentSdkDispatcher({}, hung as any)
+	const t0 = Date.now()
+	const res = await d.runStake({ ...baseReq, timeoutMs: 150 })
+	assert.ok(Date.now() - t0 < 5_000, "should return promptly on timeout, not hang")
+	assert.match(res.error ?? "", /timed out/)
+})
