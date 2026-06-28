@@ -158,3 +158,41 @@ test("session resume: an agent's session id is threaded across its stakes", asyn
 	assert.equal(result.status, "converged")
 	assert.deepEqual(resumes, [false, true]) // first stake fresh, second resumes
 })
+
+test("flow `budget: rounds(N)` caps maxRounds (was dead-wired → always ran to default 100)", async () => {
+	const flow = flowFrom(`flow "spin" {
+		agent A {
+			role: "x"
+			let go = true
+			repeat until go == false {
+				stake tick(t: "tick") -> @out
+					output: { ok: "boolean" }
+			}
+			commit
+		}
+		converge when: @A.committed
+		budget: rounds(3)
+	}`)
+	const { result } = await runWorkflow(flow, {}, new FakeDispatcher(() => JSON.stringify({ ok: true })), { cwd: "/tmp" })
+	assert.equal(result.status, "budget_exceeded")
+	assert.ok(result.rounds <= 3, `expected rounds<=3 (flow budget), got ${result.rounds}`)
+})
+
+test("explicit opts.maxRounds overrides the flow budget", async () => {
+	const flow = flowFrom(`flow "spin" {
+		agent A {
+			role: "x"
+			let go = true
+			repeat until go == false {
+				stake tick(t: "go") -> @out
+					output: { ok: "boolean" }
+			}
+			commit
+		}
+		converge when: @A.committed
+		budget: rounds(99)
+	}`)
+	const { result } = await runWorkflow(flow, {}, new FakeDispatcher(() => JSON.stringify({ ok: true })), { cwd: "/tmp", maxRounds: 2 })
+	assert.equal(result.status, "budget_exceeded")
+	assert.ok(result.rounds <= 2, `expected rounds<=2 (opts override), got ${result.rounds}`)
+})

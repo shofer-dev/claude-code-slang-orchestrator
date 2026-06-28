@@ -215,6 +215,18 @@ function initFlowState(flow: FlowDecl, params: Record<string, unknown>): {
 
 // ── Run ──
 
+/** The flow's `budget: rounds(N)` directive, if present — caps the executor's rounds.
+ * Previously parsed but never read, so every flow ran to DEFAULT_MAX_ROUNDS. */
+function flowBudgetRounds(flow: FlowDecl): number | undefined {
+	for (const item of flow.body) {
+		if (item.type === "BudgetStmt") {
+			const r = item.items.find((i) => i.kind === "rounds")
+			if (r && r.value.type === "NumberLit") return r.value.value
+		}
+	}
+	return undefined
+}
+
 export async function runWorkflow(
 	flow: FlowDecl,
 	params: Record<string, unknown>,
@@ -222,7 +234,8 @@ export async function runWorkflow(
 	opts: RunOptions,
 ): Promise<{ result: RunResult; flowState: FlowState }> {
 	const { flowState, programs, agentDecls } = initFlowState(flow, params)
-	const maxRounds = opts.maxRounds ?? DEFAULT_MAX_ROUNDS
+	// Precedence: explicit opts.maxRounds > the flow's own `budget: rounds(N)` > the safety default.
+	const maxRounds = opts.maxRounds ?? flowBudgetRounds(flow) ?? DEFAULT_MAX_ROUNDS
 	const emit = opts.onEvent ?? (() => {})
 	// One agent ⇒ one session for its whole lifetime: resumed across stakes (and retries),
 	// so the agent retains its history when re-staked.
