@@ -125,6 +125,23 @@ delegation that was run-1's root-cause bug, and the produced `formatDuration` is
 Convergence remains probabilistic on agent behavior, but the mechanism (launch, scoping,
 termination, handshake) is now solid.
 
+### Convergence rate: 5/5
+
+Same workflow + prompt, fresh-reset worktree each time (`harness/convergence-rate.sh`):
+
+| run | status | rounds | elapsed |
+|---|---|---|---|
+| 1 | converged | 9 | 589s |
+| 2 | converged | 8 | 497s |
+| 3 | converged | 8 | 822s |
+| 4 | converged | 8 | 387s |
+| 5 | converged | 8 | 484s |
+
+**5/5 converged**, every run wrote the implementation, **0 launch errors** across all runs.
+Round count is stable (8–9, the canonical happy/one-reject paths); wall-clock varies
+(~6.5–14 min) with agent speed. The hardened `implement-feature` is now reliable enough to
+anchor the two-arm benchmark.
+
 ### Implication for the benchmark
 
 `implement-feature` is **not benchmark-ready** until its convergence + the budget
