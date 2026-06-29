@@ -24,7 +24,7 @@ const responder = (req: { agentName: string; prompt: string }): string => {
     else { stake = "progress_update"; out = JSON.stringify({ done: false, summary: "slice" }) }
   } else if (a === "Reviewer") { stake = "review_verdict"; out = JSON.stringify({ approved: true, issues: "" }) }
   else if (a === "Architect") {
-    if (m("create the design document")) { stake = "create_design"; out = "Design written to plans/feature-design.md" }
+    if (m(".md files")) { stake = "create_design"; out = JSON.stringify({ summary: "design authored at plans/feature-design.md" }) }
     else if (m("hand the approved design off")) { stake = "implement"; out = "Handoff: design at plans/feature-design.md" }
     else if (m("brief the reviewer")) { stake = "prepare_to_review"; out = "Reviewer briefed" }
     else if (m("forward this round")) { stake = "review_this_round"; out = JSON.stringify({ complete: false, details: "work to review" }) }

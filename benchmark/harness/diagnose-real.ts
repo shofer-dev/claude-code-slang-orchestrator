@@ -18,7 +18,7 @@ const flow = ast.flows[0]!
 
 const stakeOf = (p: string): string => {
   const s = p.toLowerCase()
-  for (const [k, v] of [["create the design", "create_design"], ["hand the approved design", "implement"], ["brief the reviewer", "prepare_to_review"], ["forward this round", "review_this_round"], ["accepted this round", "reviewer_accepted"], ["found issues", "fix_issues"], ["final comprehensive", "final_review"], ["terminal signal", "review_complete"], ["next slice", "progress_update"], ["all design items", "done_signal"], ["evaluate the implementation", "review_verdict"]] as const)
+  for (const [k, v] of [["only write .md", "create_design"], ["hand the approved design", "implement"], ["brief the reviewer", "prepare_to_review"], ["forward this round", "review_this_round"], ["accepted this round", "reviewer_accepted"], ["found issues", "fix_issues"], ["final comprehensive", "final_review"], ["terminal signal", "review_complete"], ["next slice", "progress_update"], ["all design items", "done_signal"], ["evaluate the implementation", "review_verdict"]] as const)
     if (s.includes(k)) return v
   return "?"
 }
@@ -28,7 +28,7 @@ class Tracer implements Dispatcher {
   constructor(private inner: Dispatcher) {}
   async runStake(req: StakeRequest) {
     const stake = stakeOf(req.prompt)
-    const res = await this.inner.runStake({ ...req, timeoutMs: 180_000 })
+    const res = await this.inner.runStake({ ...req, timeoutMs: Number(process.env.STAKE_TIMEOUT_MS) || 300_000 })
     const out = res.structured !== undefined ? JSON.stringify(res.structured) : (res.result || "").slice(0, 80)
     console.error(`#${++this.n} @${req.agentName} ${stake} -> ${String(out).slice(0, 100)}${res.error ? "  ERR:" + res.error : ""}`)
     return res

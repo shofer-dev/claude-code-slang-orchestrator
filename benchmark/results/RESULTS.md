@@ -86,15 +86,32 @@ Built to make `implement-feature` execute reliably (all tested, 48 pass):
 during `create_design`, because shofer's `architect` mode (`.md`-only write) is a no-op in
 the port. The hardened workflow (`benchmark/workflows/implement-feature.slang`) blocks that.
 
-**Environmental caveat on `write_paths`/`canUseTool` (this host):** the SDK's `canUseTool`
-*control-protocol* launch is **unreliable here** — `create_design` consistently fails with
-"native binary failed to launch (musl on glibc)" for **both** the bundled CLI (musl) and the
-system `claude 2.1.195` (newer protocol than SDK `0.3.187`). The **bypass-mode** path
-(`deny:` / normal stakes) is unaffected and reliable (pipeline + the original
-`implement-feature` converge). So on this host the **robust** way to force Architect
-delegation is **`deny: [Write, Edit, Bash]`** (pure coordinator; design authored by a
-delegate) — the `write_paths` approach is correct + unit/probe/`wptest`-verified but blocked
-here by the SDK control-protocol/libc/version mismatch.
+**`write_paths` enforcement — `canUseTool` vs command hook (resolved).** The first
+`write_paths` backing used the SDK's `canUseTool`. That needs the Agent-SDK **control
+protocol** (a bidirectional Node↔CLI channel for the JS callback), whose subprocess launch
+**deterministically fails when `cwd` is the full shofer worktree** — "native binary failed
+to launch (musl on glibc)", but the message is misleading: it's **cwd-dependent**, not
+libc. Isolation established (each tested alone, worktree cwd): bypass-mode stakes launch
+fine there; **any JS callback** — `canUseTool` *or* a JS hook — fails; minimal cwds (plain,
+git-dir, git-worktree, node_modules) all pass; only the large real project fails. Ruled out:
+binary/libc, project settings (`settingSources:[]`), MCP (`mcpServers:{}`), settings-hooks,
+git-worktree (`.git` detached), `node_modules` presence, resource exhaustion (tmpdir passes
++ worktree fails back-to-back in one process).
+
+**Fix: back `write_paths` with a PreToolUse *command* hook** (`server/src/write-guard.mjs`)
+instead of `canUseTool`. A command hook is run by the CLI itself — no control protocol — so
+it launches under `bypassPermissions` wherever a normal stake does. Injected **per-session**
+via inline `settings` + a `SLANG_WRITE_PATHS` env var, so it scopes only the `write_paths`
+agent, not others sharing the worktree cwd. The `write_paths:` language surface is unchanged;
+only the dispatcher's mechanism changed. **Verified end-to-end in the worktree:** the
+Architect launches (0 binary errors) and a `.ts` write is denied → falls back to `.md`; the
+hook produces **no spurious denials** on the allowed `.md` design (isolated `create_design`:
+`writes=0, denies=1` where the 1 was an `EISDIR` directory-read, not a write-scope block).
+
+**Remaining `implement-feature` gap is agent-behavior, not mechanism.** With `write_paths`
+working, `create_design` reliability is now bound by the Architect agent's exploration
+quality (spawning slow sub-agents, path confusion), not the slang executor or the
+write-scoping — a workflow/prompt-tuning matter.
 
 ### Implication for the benchmark
 

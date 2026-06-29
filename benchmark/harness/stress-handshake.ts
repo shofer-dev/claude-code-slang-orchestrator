@@ -37,7 +37,8 @@ function makeResponder(rejectRounds: number) {
       if (p.includes("found issues")) return JSON.stringify({ accepted: false, details: "fix" })
       if (p.includes("final comprehensive review")) { final = true; return JSON.stringify({ complete: false, details: "final" }) }
       if (p.includes("terminal signal")) return JSON.stringify({ complete: true, details: "stop" })
-      return "handoff"  // create_design / implement / prepare_to_review (no contract)
+      if (p.includes(".md files")) return JSON.stringify({ summary: "design authored" })  // create_design (output contract)
+      return "handoff"  // implement / prepare_to_review (no contract)
     }
     return "{}"
   }

@@ -37,8 +37,9 @@ flow "implement-feature" (feature: "string", design_path: "string") {
 
     stake create_design(
       feature: feature,
-      instructions: "Create the design document and write it to EXACTLY this path: ${design_path} (create any parent directories if they do not exist). Use that exact path — every later step and the user are told the design lives there, so do NOT name it after the feature or place it elsewhere."
+      instructions: "Write the feature design to EXACTLY this path: ${design_path} (create parent dirs if needed; use that exact path — later steps and the user are told the design lives there). IMPORTANT: you can ONLY write .md files — you CANNOT write code and must NOT attempt to implement (the Developer implements). Do not spawn sub-agents. As soon as the design file is written, return a one-paragraph summary of the approach as your result and STOP — do not keep exploring."
     )
+      output: { summary: "string" }
 
     escalate @Human reason:
       "Please review the design document I've created at ${design_path}." form: {
