@@ -148,22 +148,31 @@ test("globToRegExp matches ** and * for write_paths", async () => {
 	assert.ok(!globToRegExp("docs/**").test("src/x.ts"))
 })
 
-test("write_paths: scopes Write/Edit via canUseTool + drops them from allowedTools (non-bypass)", async () => {
+test("write_paths: injects a PreToolUse command hook + globs env, stays in bypass mode", async () => {
 	const { fn, calls } = fakeQuery([initMsg("S1"), successMsg("S1", "ok")])
 	await new AgentSdkDispatcher({}, fn).runStake({
 		...baseReq,
 		allowedTools: ["Read", "Write", "Edit"],
-		writePaths: ["**/*.md"],
+		writePaths: ["**/*.md", "docs/**"],
 	})
 	const o = calls[0]!.options!
-	assert.deepEqual(o.allowedTools, ["Read"]) // Write/Edit removed → routed through canUseTool
-	assert.equal(o.permissionMode, "default")
-	assert.notEqual(o.allowDangerouslySkipPermissions, true)
-	assert.equal(typeof o.canUseTool, "function")
-	const deny = await o.canUseTool!("Write", { file_path: "/x/foo.ts" }, {} as any)
-	const allow = await o.canUseTool!("Write", { file_path: "/x/plan.md" }, {} as any)
-	const other = await o.canUseTool!("Read", { file_path: "/x/foo.ts" }, {} as any)
-	assert.equal(deny.behavior, "deny")
-	assert.equal(allow.behavior, "allow")
-	assert.equal(other.behavior, "allow")
+	// allowedTools untouched + bypass preserved (hook enforces, not a control-protocol callback)
+	assert.deepEqual(o.allowedTools, ["Read", "Write", "Edit"])
+	assert.equal(o.permissionMode, "bypassPermissions")
+	assert.equal(o.canUseTool, undefined)
+	// a PreToolUse command hook scoped to write tools
+	const pre = (o.settings as any).hooks.PreToolUse[0]
+	assert.equal(pre.matcher, "Write|Edit|MultiEdit")
+	assert.equal(pre.hooks[0].type, "command")
+	assert.match(pre.hooks[0].command, /write-guard\.mjs/)
+	// globs passed to the guard via env
+	assert.equal((o.env as any).SLANG_WRITE_PATHS, "**/*.md:docs/**")
+})
+
+test("no write_paths ⇒ no hook/env injected", async () => {
+	const { fn, calls } = fakeQuery([initMsg("S1"), successMsg("S1", "ok")])
+	await new AgentSdkDispatcher({}, fn).runStake({ ...baseReq, allowedTools: ["Read", "Write"] })
+	const o = calls[0]!.options!
+	assert.equal(o.settings, undefined)
+	assert.equal((o.env as any)?.SLANG_WRITE_PATHS, undefined)
 })

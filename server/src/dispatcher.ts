@@ -41,9 +41,10 @@ export interface StakeRequest {
 	outputJsonSchema?: Record<string, unknown>
 	/** Per-stake wall-clock cap (ms). Omitted ⇒ the dispatcher's default; <=0 ⇒ no cap. */
 	timeoutMs?: number
-	/** Restrict Write/Edit to paths matching these globs (others denied via the SDK's
-	 * canUseTool). Switches the session off bypass-mode so the callback fires. Gates
-	 * Write/Edit only — pair with `deny: [Bash]` to close the shell escape. From `write_paths:`. */
+	/** Restrict Write/Edit to paths matching these globs. Enforced by a PreToolUse *command*
+	 * hook (CLI-run, no control protocol — works under bypass and in cwds where canUseTool
+	 * can't launch), injected per-session. Gates Write/Edit only — pair with `deny: [Bash]`
+	 * to close the shell escape. From `write_paths:`. */
 	writePaths?: string[]
 }
 
