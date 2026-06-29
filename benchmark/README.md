@@ -49,18 +49,39 @@ protocol). `implement-feature` is deliberately at the complex end.
 
 ## Harness
 
+Shared setup:
 - **`setup_worktree.sh [wt] [ref]`** — faithful build-env shofer worktree at master HEAD
-  (same approach as the live-memory benchmark: `pnpm install --offline` + built
-  `@shofer/*` + `vscode-shim` link + base `tsc` clean).
-- **`smoke.ts`** — headless driver: `parseSlang` → `runWorkflow` with the **real**
-  `AgentSdkDispatcher`, auto-answering `@Human` escalations (picks the approve option).
-  This drives the path the unit tests *mock* (40 unit tests pass but `fakeQuery` the SDK).
+  (`pnpm install --offline` + built `@shofer/*` + `vscode-shim` link + base `tsc` clean).
+- **`workflows/implement-feature.slang`** — benchmark-owned, hardened copy of the flow
+  (Architect `write_paths:["**/*.md"]`+`deny:[Bash]` so it designs but cannot self-implement;
+  `create_design` has an output contract + "write then stop" instruction).
+
+Arm A — **slang (Operator)**:
+- **`smoke.ts`** — headless `parseSlang` → `runWorkflow` with the real `AgentSdkDispatcher`,
+  auto-approving `@Human` escalations. Validated the real-agent path the unit tests mock.
+- **`diagnose-real.ts`** — one full run, tracing each stake's agent + output (+ per-stake
+  timeout via `STAKE_TIMEOUT_MS`); the per-run instrument.
+- **`convergence-rate.sh [N]`** — N sequential runs from a fresh-reset worktree → CSV of
+  terminal status / rounds / elapsed / launch-errors / impl-written.
+- Deterministic coordination proofs: **`repro-handshake.ts`** (intended outputs converge in
+  8 rounds), **`stress-handshake.ts`** (reject cycles converge; reviewer-never-approves
+  terminates). These run with the `FakeDispatcher` — no model — so they pin the *executor*.
+
+Arm B — **LLM-orchestrated (Driver)**:
+- **`driver.ts`** — the **same** role-agents (parsed from the same workflow → identical
+  tools/role/`write_paths`), same worktree, same feature, but an **LLM coordinator** decides
+  each step (`run_architect`/`run_developer`/`run_reviewer`/`finish`, via structured output)
+  instead of the slang executor. Records coordination tokens + protocol fidelity.
+- **`driver-rate.sh [N]`** — N driver runs → CSV of converged / steps / which roles ran /
+  whether the FINAL work was reviewed / driver tokens / impl.
 
 ## Status
 
-- [x] **Real-run path validated** — `pipeline.slang` smoke: Producer→`{n:21}`→Worker→
-      `{doubled:42}`, converged in 8.9s, contracts honored. The executor genuinely drives
-      real agents end-to-end (not just the mocked unit path).
-- [ ] **`implement-feature` smoke** on a master worktree (validates modes
-      `architect`/`code`/`reviewer` + escalation auto-answer + agents doing real coding).
-- [ ] Two-arm harness over N features × M runs, capturing the metrics above.
+- [x] **Real-run path validated** (`pipeline.slang` smoke, contracts honored).
+- [x] **Executor hardened** so `implement-feature` runs reliably — budget honored + per-stake
+      timeout (always terminates), `write_paths` (command-hook backed; works in the worktree),
+      `deny:` tool control, `create_design` termination tune. 49 unit tests pass.
+- [x] **Arm A rate: 5/5 converged** (`convergence-rate.sh`), 0 launch errors, impl every run.
+- [~] **Arm B rate** (`driver-rate.sh`) — running; per-run protocol-fidelity + coordination
+      tokens. See [`results/RESULTS.md`](results/RESULTS.md).
+- [ ] Second feature (generalize beyond `formatDuration`).

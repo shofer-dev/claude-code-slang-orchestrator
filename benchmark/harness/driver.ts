@@ -60,11 +60,15 @@ const DECISION = {
   additionalProperties: false,
 } as const
 
+const DESIGN_PATH = interp(params.design_path ? "${design_path}" : "plans/feature-design.md")
 const DRIVER_SYS = `You orchestrate a small team implementing ONE software feature in a real repo. You invoke ONE specialist at a time and decide the order yourself:
 - run_architect — writes a design document (.md only; CANNOT write code).
 - run_developer — implements the code per the design, slice by slice, with tests.
 - run_reviewer — reviews the developer's work against the design and reports pass/issues.
-Each step: pick next_action and give that specialist concise instructions (include any context they need — they only see what you tell them). The design must live at EXACTLY ${interp(params.design_path ? "${design_path}" : "plans/feature-design.md")}. When the feature is fully implemented AND has been reviewed and you are satisfied it is correct and complete, choose next_action "finish". Do not finish before the work has actually been implemented and reviewed.`
+
+STARTING STATE: the repo is CLEAN for this feature — there is NO design document and NO implementation yet. Nothing has been done until you invoke a specialist and it reports back. Do NOT assume any step is already complete; trust ONLY the specialists' actual results, never an assumption that work "already exists." The architect must CREATE the design at EXACTLY ${DESIGN_PATH} (it does not exist until then); the developer then implements the code; the reviewer then checks it.
+
+Each step: pick next_action and give that specialist concise instructions (include all context they need — they see ONLY what you tell them, plus the repo files). When the feature is fully implemented (code files actually written) AND has been reviewed, choose "finish". Do not finish before the work has actually been implemented and reviewed by the specialists.`
 
 let driverSession: string | undefined
 const tok = { input: 0, output: 0, cache_read: 0, cache_write: 0 }
@@ -95,7 +99,7 @@ void (async () => {
   const t0 = Date.now()
   const actions: string[] = []
   let converged = false
-  let last = "Begin. Decide the first action."
+  let last = `Begin. The repo is in a CLEAN state — no design document and no implementation for this feature exist yet; you are starting from scratch. The feature to deliver:\n${params.feature ?? ""}\nDecide the first action.`
   for (let step = 0; step < MAX_STEPS; step++) {
     const decision = await driverDecide(last)
     if (!decision) { console.error(`[driver] step ${step}: no decision (driver failed)`); break }
