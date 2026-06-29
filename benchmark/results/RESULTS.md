@@ -108,10 +108,22 @@ Architect launches (0 binary errors) and a `.ts` write is denied → falls back 
 hook produces **no spurious denials** on the allowed `.md` design (isolated `create_design`:
 `writes=0, denies=1` where the 1 was an `EISDIR` directory-read, not a write-scope block).
 
-**Remaining `implement-feature` gap is agent-behavior, not mechanism.** With `write_paths`
-working, `create_design` reliability is now bound by the Architect agent's exploration
-quality (spawning slow sub-agents, path confusion), not the slang executor or the
-write-scoping — a workflow/prompt-tuning matter.
+**Architect termination tune.** With `write_paths` working, the only remaining issue was
+the Architect *over-exploring* `create_design` — it wrote the `.md` design then kept
+spawning sub-agents past the timeout instead of returning. Fixed with an output contract
+(`{summary}`) + instructions to "write the design then STOP, no implementing, no
+sub-agents." Now `create_design` returns cleanly on attempt 1.
+
+### ✅ Converges end-to-end (the hardened workflow)
+
+A real run on a clean shofer worktree **converged in 9 rounds / 507s, 0 launch errors**:
+`create_design` (Architect writes `.md` only) → escalation → `implement` (hand-off) →
+Developer writes `src/utils/formatDuration.ts` + vitest spec → review loop (Reviewer flags
+missing boundary tests → Developer fixes) → terminal → converged. **The Architect authored
+only the `.md` design; the Developer wrote the code** — `write_paths` enforced the
+delegation that was run-1's root-cause bug, and the produced `formatDuration` is correct.
+Convergence remains probabilistic on agent behavior, but the mechanism (launch, scoping,
+termination, handshake) is now solid.
 
 ### Implication for the benchmark
 
