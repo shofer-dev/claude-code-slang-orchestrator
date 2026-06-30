@@ -11,8 +11,7 @@ import { randomUUID } from "node:crypto"
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod"
-import { listWorkflows, resolveWorkflow, validateWorkflowFile } from "./workflows.js"
-import { parseSlang } from "./slang/slang-parser.js"
+import { analyzeSource, listWorkflows, resolveWorkflow, validateWorkflowFile } from "./workflows.js"
 import { runWorkflow, type EscalationRequest } from "./executor.js"
 import { AgentSdkDispatcher } from "./agent-sdk-dispatcher.js"
 import { serializeFlowState, topologyToMermaid, type FlowState } from "./slang/slang-types.js"
@@ -26,6 +25,45 @@ function jsonResult(data: unknown) {
 function errorResult(message: string) {
 	return { content: [{ type: "text" as const, text: message }], isError: true }
 }
+
+/** Concise generation cheatsheet for `get_slang_grammar` — enough for an LLM to emit a valid
+ * flow inline; the full 988-line spec lives in slang_specs.md. */
+const SLANG_CHEATSHEET = `# Slang — quick grammar (for generating a workflow to run inline)
+
+A flow coordinates one or more agents. The executor is a deterministic state machine: it
+schedules stakes, routes results through mailboxes, validates output contracts, and converges.
+
+\`\`\`slang
+-- comments start with --
+flow "my-flow" {
+  title: "Human title"
+  description: "what it does"
+
+  agent Worker {
+    role: "System prompt for this agent. Return ONLY JSON matching the output contract."
+    tools: [read, write, execute]      -- tool groups; omit for full access under bypass
+    -- optional scoping: write_paths: ["**/*.md"]   deny: [Bash]   mode: "code"
+
+    stake do_thing(
+      task: "Instruction. Reference flow params with \${param}."
+    ) -> @other                         -- '-> @Agent' routes the RESULT to that agent's mailbox
+      output: { ok: "boolean", note: "string" }   -- contract: validated + re-prompted on miss
+
+    await reply <- @other               -- block until a result is routed from @other
+    commit                              -- this agent is done
+  }
+
+  converge when: @Worker.committed      -- termination condition
+  budget: rounds(20)                    -- hard cap (always terminates)
+}
+\`\`\`
+
+Key constructs: \`stake name(args) -> @Agent\` (run + route), \`await x <- @Agent\` (receive),
+\`commit\`, \`repeat until <cond> { ... }\`, \`when <cond> { ... } otherwise { ... }\`,
+\`escalate @Human reason: "..." form: { field: "string" { options: [...] } }\`, \`converge when:\`,
+\`budget: rounds(N)\`. Every routed/looped stake SHOULD declare an \`output:\` contract.
+Validate before running: parse errors and \`[error]\` diagnostics (deadlock, unknown refs,
+missing converge/budget, orphan outputs) block execution.`
 
 function buildServer(cwd: string): McpServer {
 	const server = new McpServer({ name: "slang-workflows", version: VERSION })
@@ -77,6 +115,19 @@ function buildServer(cwd: string): McpServer {
 	)
 
 	server.registerTool(
+		"get_slang_grammar",
+		{
+			title: "Get slang grammar",
+			description:
+				"Return a concise slang grammar cheatsheet (constructs + a complete example) so you can " +
+				"GENERATE a workflow on the fly and run it inline via run_workflow(source). Validate generated " +
+				"source with validate_workflow(source) first; run_workflow also rejects parse/static-analysis errors.",
+			inputSchema: {},
+		},
+		async () => ({ content: [{ type: "text" as const, text: SLANG_CHEATSHEET }] }),
+	)
+
+	server.registerTool(
 		"validate_workflow",
 		{
 			title: "Validate workflow",
@@ -86,11 +137,16 @@ function buildServer(cwd: string): McpServer {
 			inputSchema: {
 				name: z.string().optional().describe("Flow name or .slang filename (project scope preferred)."),
 				path: z.string().optional().describe("Absolute path to a .slang file (overrides `name`)."),
+				source: z.string().optional().describe("Inline .slang source to validate (overrides name/path) — validate generated flows before running."),
 			},
 		},
-		async ({ name, path: filePath }) => {
+		async ({ name, path: filePath, source: inlineSource }) => {
+			if (inlineSource != null) {
+				const { ast, parseErrors, diagnostics, hardErrors } = analyzeSource(inlineSource)
+				return jsonResult({ name: ast.flows[0]?.name ?? null, path: null, parseErrors, diagnostics, ok: parseErrors.length === 0 && hardErrors.length === 0 })
+			}
 			const file = filePath ?? (name ? await resolveWorkflow(cwd, name) : undefined)
-			if (!file) return errorResult(`No workflow found for ${name ? `name "${name}"` : "the given arguments"}.`)
+			if (!file) return errorResult(`No workflow found for ${name ? `name "${name}"` : "the given arguments"} (or pass inline \`source\`).`)
 			try {
 				return jsonResult(await validateWorkflowFile(file))
 			} catch (e) {
@@ -111,21 +167,29 @@ function buildServer(cwd: string): McpServer {
 			inputSchema: {
 				name: z.string().optional().describe("Flow name or .slang filename."),
 				path: z.string().optional().describe("Absolute path to a .slang file (overrides `name`)."),
+				source: z.string().optional().describe("Inline .slang source (overrides name/path) — e.g. a workflow an LLM generated on the fly."),
 				params: z.record(z.any()).optional().describe("Flow parameters as a key/value object."),
 				model: z.string().optional().describe("Default model for agents without api_configuration (e.g. sonnet)."),
 			},
 		},
-		async ({ name, path: filePath, params, model }) => {
-			const file = filePath ?? (name ? await resolveWorkflow(cwd, name) : undefined)
-			if (!file) return errorResult(`No workflow found for ${name ? `name "${name}"` : "the given arguments"}.`)
+		async ({ name, path: filePath, source: inlineSource, params, model }) => {
 			let source: string
-			try {
-				source = await fs.readFile(file, "utf8")
-			} catch (e) {
-				return errorResult(`Failed to read ${file}: ${(e as Error).message}`)
+			if (inlineSource != null) {
+				source = inlineSource
+			} else {
+				const file = filePath ?? (name ? await resolveWorkflow(cwd, name) : undefined)
+				if (!file) return errorResult(`No workflow found for ${name ? `name "${name}"` : "the given arguments"} (or pass inline \`source\`).`)
+				try {
+					source = await fs.readFile(file, "utf8")
+				} catch (e) {
+					return errorResult(`Failed to read ${file}: ${(e as Error).message}`)
+				}
 			}
-			const { ast, errors } = parseSlang(source)
-			if (errors.length) return errorResult(`Parse errors:\n${errors.join("\n")}`)
+			// Gate execution on parse errors AND hard static-analysis errors (deadlock, unknown
+			// refs, missing converge/budget) — especially important for generated workflows.
+			const { ast, parseErrors, hardErrors } = analyzeSource(source)
+			if (parseErrors.length) return errorResult(`Parse errors:\n${parseErrors.join("\n")}`)
+			if (hardErrors.length) return errorResult(`Static-analysis errors (fix before running):\n${hardErrors.join("\n")}`)
 			const flow = ast.flows[0]
 			if (!flow) return errorResult("No flow found in source.")
 			try {

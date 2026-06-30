@@ -126,17 +126,28 @@ export async function resolveWorkflow(cwd: string, name: string): Promise<string
 	return match?.path
 }
 
+/** Parse + statically analyze inline slang source (the file-free path used by inline `source`
+ * tool args and LLM-generated workflows). `hardErrors` are the `[error]` diagnostics that block
+ * execution (deadlock, unknown refs, missing converge/budget, orphan outputs). */
+export function analyzeSource(source: string): {
+	ast: ReturnType<typeof parseSlang>["ast"]
+	parseErrors: string[]
+	diagnostics: string[]
+	hardErrors: string[]
+} {
+	const { ast, errors } = parseSlang(source)
+	const diagnostics = ast.flows.length ? validateSlangAST(ast) : []
+	return { ast, parseErrors: errors, diagnostics, hardErrors: diagnostics.filter((d) => d.startsWith("[error]")) }
+}
+
 /** Parse + statically analyze one workflow file. */
 export async function validateWorkflowFile(file: string): Promise<ValidationReport> {
-	const source = await fs.readFile(file, "utf8")
-	const { ast, errors } = parseSlang(source)
-	const diagnostics = validateSlangAST(ast)
-	const hardErrors = diagnostics.filter((d) => d.startsWith("[error]"))
+	const { ast, parseErrors, diagnostics, hardErrors } = analyzeSource(await fs.readFile(file, "utf8"))
 	return {
 		name: ast.flows[0]?.name ?? path.basename(file, ".slang"),
 		path: file,
-		parseErrors: errors,
+		parseErrors,
 		diagnostics,
-		ok: errors.length === 0 && hardErrors.length === 0,
+		ok: parseErrors.length === 0 && hardErrors.length === 0,
 	}
 }
