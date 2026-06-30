@@ -63,6 +63,8 @@ export interface WorkflowEvent {
 	round: number
 	kind: "stake" | "retry" | "committed" | "converged" | "error" | "deadlock" | "budget" | "escalate"
 	agent?: string
+	/** Routing targets of a `stake` (the `-> @X` recipients) — for the sequence-diagram trace. */
+	to?: string[]
 	detail?: string
 }
 
@@ -344,7 +346,7 @@ async function runStakeWithRetries(
 	let feedback = ""
 	for (let attempt = 0; attempt <= maxRetries; attempt++) {
 		const prompt = attempt === 0 ? basePrompt : `${basePrompt}\n\n${feedback}`
-		emit({ round: flowState.round, kind: attempt === 0 ? "stake" : "retry", agent: name, detail: `attempt ${attempt + 1}` })
+		emit({ round: flowState.round, kind: attempt === 0 ? "stake" : "retry", agent: name, to: op.recipients.map((r) => r.ref), detail: `attempt ${attempt + 1}` })
 		const res = await dispatcher.runStake({
 			agentName: name,
 			prompt,

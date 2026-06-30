@@ -1,8 +1,9 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { analyzeSource } from "../src/workflows.js"
-import { runWorkflow } from "../src/executor.js"
+import { runWorkflow, type WorkflowEvent } from "../src/executor.js"
 import { FakeDispatcher } from "../src/dispatcher.js"
+import { eventsToSequenceDiagram } from "../src/slang/slang-types.js"
 
 // The "LLM generates slang → validate → run inline" path: analyzeSource backs both
 // validate_workflow(source) and run_workflow(source)'s parse/static-error gate.
@@ -47,4 +48,37 @@ test("inline generate → validate → run: a generated flow executes via the di
 	assert.equal(r.parseErrors.length + r.hardErrors.length, 0) // would-be run_workflow gate passes
 	const { result } = await runWorkflow(r.ast.flows[0]!, {}, new FakeDispatcher(() => JSON.stringify({ ok: true })), { cwd: "/tmp" })
 	assert.equal((result as { status: string }).status, "converged")
+})
+
+test("eventsToSequenceDiagram: participants, routing, commit, escalation, converge", () => {
+	const d = eventsToSequenceDiagram([
+		{ round: 1, kind: "stake", agent: "Architect", to: ["Developer"] },
+		{ round: 2, kind: "committed", agent: "Developer" },
+		{ round: 3, kind: "escalate", agent: "Architect" },
+		{ round: 4, kind: "converged" },
+	])
+	assert.match(d, /```mermaid\nsequenceDiagram/)
+	assert.match(d, /participant p\d+ as Architect/)
+	assert.match(d, /participant p\d+ as Human/) // escalate adds the Human pseudo-agent
+	assert.match(d, /->>p\d+: stake → @Developer \(r1\)/)
+	assert.match(d, /Note over p\d+: ✓ committed \(r2\)/)
+	assert.match(d, /->>p\d+: escalate \(r3\)/)
+	assert.match(d, /🎉 converged \(r4\)/)
+})
+
+test("eventsToSequenceDiagram: empty event log → empty string", () => {
+	assert.equal(eventsToSequenceDiagram([]), "")
+})
+
+test("inline run yields a usable trace (events → sequence diagram)", async () => {
+	const events: WorkflowEvent[] = []
+	const r = analyzeSource(VALID)
+	await runWorkflow(r.ast.flows[0]!, {}, new FakeDispatcher(() => JSON.stringify({ ok: true })), {
+		cwd: "/tmp",
+		onEvent: (e) => events.push(e),
+	})
+	assert.ok(events.some((e) => e.kind === "committed"))
+	const d = eventsToSequenceDiagram(events)
+	assert.match(d, /sequenceDiagram/)
+	assert.match(d, /Worker/)
 })

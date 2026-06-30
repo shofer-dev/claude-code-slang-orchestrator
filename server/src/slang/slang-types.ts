@@ -191,6 +191,64 @@ export function topologyToMermaid(agents: Map<string, AgentState>): string {
 	].join("\n")
 }
 
+/** Minimal shape of an executor `WorkflowEvent` (typed structurally to avoid importing the
+ * executor here — `WorkflowEvent` is assignable to this). */
+export interface TraceEvent {
+	round: number
+	kind: string
+	agent?: string
+	to?: string[]
+	detail?: string
+}
+
+/**
+ * Render a run's event log as a Mermaid `sequenceDiagram` — the round-by-round trace of who
+ * staked/routed to whom, commits, escalations, and the terminal event. Complements the
+ * topology *snapshot* (`topologyToMermaid`) with the *timeline*. Returns a fenced ```mermaid
+ * block, or "" when there are no events.
+ */
+export function eventsToSequenceDiagram(events: TraceEvent[]): string {
+	if (events.length === 0) return ""
+	const names: string[] = []
+	const seen = new Set<string>()
+	const add = (n?: string) => {
+		if (n && !seen.has(n)) (seen.add(n), names.push(n))
+	}
+	for (const e of events) {
+		add(e.agent)
+		for (const t of e.to ?? []) if (t !== "out" && t !== "all") add(t)
+		if (e.kind === "escalate") add("Human")
+	}
+	if (names.length === 0) return ""
+	const id = new Map<string, string>()
+	names.forEach((n, i) => id.set(n, `p${i}`))
+	const pid = (n?: string) => (n && id.get(n)) || "p0"
+
+	const lines: string[] = ["```mermaid", "sequenceDiagram"]
+	for (const n of names) lines.push(`    participant ${id.get(n)} as ${escapeMermaidLabel(n)}`)
+	for (const e of events) {
+		const r = `r${e.round}`
+		const a = e.agent
+		if (e.kind === "stake") {
+			const targets = (e.to ?? []).filter((t) => t !== "out" && t !== "all")
+			if (a && targets.length) for (const t of targets) lines.push(`    ${pid(a)}->>${pid(t)}: stake → @${escapeMermaidLabel(t)} (${r})`)
+			else if (a) lines.push(`    Note over ${pid(a)}: stake${(e.to ?? []).includes("all") ? " → @all" : (e.to ?? []).includes("out") ? " → out" : ""} (${r})`)
+		} else if (e.kind === "retry" && a) {
+			lines.push(`    Note over ${pid(a)}: retry (${r})`)
+		} else if (e.kind === "committed" && a) {
+			lines.push(`    Note over ${pid(a)}: ✓ committed (${r})`)
+		} else if (e.kind === "escalate" && a) {
+			lines.push(`    ${pid(a)}->>${pid("Human")}: escalate (${r})`)
+		} else if (e.kind === "converged") {
+			lines.push(`    Note over ${pid(names[0])},${pid(names[names.length - 1])}: 🎉 converged (${r})`)
+		} else if (e.kind === "error" || e.kind === "deadlock" || e.kind === "budget") {
+			lines.push(`    Note over ${pid(a ?? names[0])}: ⚠ ${e.kind} (${r})`)
+		}
+	}
+	lines.push("```")
+	return lines.join("\n")
+}
+
 /**
  * Deserialize a JSON-safe object back to FlowState.
  */

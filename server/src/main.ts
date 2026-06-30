@@ -12,9 +12,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod"
 import { analyzeSource, listWorkflows, resolveWorkflow, validateWorkflowFile } from "./workflows.js"
-import { runWorkflow, type EscalationRequest } from "./executor.js"
+import { runWorkflow, type EscalationRequest, type WorkflowEvent } from "./executor.js"
 import { AgentSdkDispatcher } from "./agent-sdk-dispatcher.js"
-import { serializeFlowState, topologyToMermaid, type FlowState } from "./slang/slang-types.js"
+import { eventsToSequenceDiagram, serializeFlowState, topologyToMermaid, type FlowState } from "./slang/slang-types.js"
 
 const VERSION = "0.1.0"
 
@@ -71,6 +71,8 @@ function buildServer(cwd: string): McpServer {
 	// In-memory registry of runs so state/topology can be inspected after a run.
 	// (Phase 1 runs synchronously; this becomes the live store for background runs later.)
 	const runs = new Map<string, FlowState>()
+	// Per-run event log (the execution trace) for `get_trace`.
+	const traces = new Map<string, WorkflowEvent[]>()
 
 	// `escalate @Human` handler: elicit input from the user via MCP elicitation. This works
 	// because `run_workflow` is still the open client tool call (elicitation is tool-call-scoped).
@@ -194,13 +196,16 @@ function buildServer(cwd: string): McpServer {
 			if (!flow) return errorResult("No flow found in source.")
 			try {
 				const dispatcher = new AgentSdkDispatcher()
+				const events: WorkflowEvent[] = []
 				const { result, flowState } = await runWorkflow(flow, params ?? {}, dispatcher, {
 					cwd,
 					defaultModel: model ?? "sonnet",
 					onEscalate,
+					onEvent: (e) => events.push(e),
 				})
 				const workflowId = randomUUID()
 				runs.set(workflowId, flowState)
+				traces.set(workflowId, events)
 				return jsonResult({ workflow_id: workflowId, ...result })
 			} catch (e) {
 				return errorResult(`Run failed: ${(e as Error).stack ?? (e as Error).message}`)
@@ -237,6 +242,24 @@ function buildServer(cwd: string): McpServer {
 			const state = runs.get(workflow_id)
 			if (!state) return errorResult(`Unknown workflow_id "${workflow_id}".`)
 			return { content: [{ type: "text" as const, text: topologyToMermaid(state.agents) }] }
+		},
+	)
+
+	server.registerTool(
+		"get_trace",
+		{
+			title: "Get workflow trace (Mermaid sequence + event log)",
+			description:
+				"Return a run's execution trace as a Mermaid `sequenceDiagram` (round-by-round: who staked/" +
+				"routed to whom, commits, escalations, terminal event) plus the raw event log. The timeline " +
+				"counterpart to `get_topology`'s snapshot. Render the diagram inline. Identify it by `workflow_id`.",
+			inputSchema: { workflow_id: z.string().describe("Id returned by run_workflow.") },
+		},
+		async ({ workflow_id }) => {
+			const events = traces.get(workflow_id)
+			if (!events) return errorResult(`Unknown workflow_id "${workflow_id}".`)
+			const diagram = eventsToSequenceDiagram(events)
+			return { content: [{ type: "text" as const, text: `${diagram}\n\n${JSON.stringify({ events }, null, 2)}` }] }
 		},
 	)
 
