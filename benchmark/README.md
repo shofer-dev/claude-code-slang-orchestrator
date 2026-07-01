@@ -87,6 +87,8 @@ Arm B — **LLM-orchestrated (Driver)**:
       tokens/run (arm A: 0). *Correction:* an earlier batch scored 1/5 but was confounded by a
       gitignored leftover design (reset now `rm -rf plans`); 3/5 is the clean number. Two
       failure modes + mechanism in [`results/RESULTS.md`](results/RESULTS.md).
-- [ ] **Arm C** — slang vs. Claude Code's **native dynamic-workflows** feature (the modern,
-      fairer baseline: both codified orchestration).
+- [x] **Arm C** — Claude Code's **native dynamic-workflows** feature (`armc-workflow.js`):
+      **5/5 real implementations**, ~0 per-run coordination LLM (codified JS script). Matches
+      arm A on reliability → the finding is *codified vs. turn-by-turn*, and slang's edge over
+      the native feature is **guarantees + diagrams**, not raw reliability. See RESULTS.
 - [ ] Second feature + more reps (one feature × 5 runs/arm is directional, not exact rates).

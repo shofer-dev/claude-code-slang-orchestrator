@@ -225,35 +225,65 @@ running the review→fix loop (Reviewer caught missing tests → Developer fixed
 "done." The essence: free-form coordination never *requires* any step to produce a verified
 result; whether the Developer bothers to check + write is left to chance.
 
-### Head-to-head
+### Arm C — native Claude Code dynamic workflows (codified JS orchestration): 5/5
 
-| | A — Operator (slang) | B — Driver (fair LLM) |
-|---|---|---|
-| converged (self-report) | 5/5 | 5/5 |
-| **real implementation** | **5/5** | **3/5** (clean; confounded batch was 1/5) |
-| protocol fidelity | **guaranteed (by construction)** | ran full protocol 4/5; drifted 1/5; passing review can be hollow |
-| coordination LLM tokens / run | **0** | ~98–135k |
-| silent false-convergence | **impossible** | **40%** (2/5 report success, ship nothing) |
+Claude Code's **dynamic-workflows** feature (v2.1.154+) is the modern, fair comparison: an
+LLM writes a **JavaScript orchestration script** that the runtime executes, coordinating
+subagents. Unlike arm B, the plan is *codified* — once written it runs deterministically
+(JS control flow, **~0 per-run coordination LLM**), like slang. Arm C ran the *same* three
+roles (Architect→Developer⇄Reviewer) over the *same* `formatDuration` task in the *same*
+worktree (`benchmark/harness/armc-workflow.js`; `schema` as the contract-analog).
 
-### Conclusions
+**Result: 5/5 real implementations** (impl + spec every rep), all in 1 review round; ~59k
+tokens/run (all *agent work* — the script's coordination is 0 LLM). Notably the Architect
+*still* embedded code in the design (2 code blocks, as in A/B), yet the Developer wrote the
+real files every time — because the codified script explicitly said "create the ACTUAL
+files + run the tests" and the Reviewer was guarded ("do not approve if the file doesn't
+exist"). **Codified orchestration grounds the agents, exactly as arm A does.**
 
-- **Coordination cost** — the clean, guaranteed delta: **0 vs ~100k tokens/run**, pure
-  overhead on top of identical agent work.
-- **Reliability** — same agents, same task: the operator ships **5/5** vs the LLM coordinator
-  **3/5** — a **40% silent false-convergence** rate (reports "converged," ships nothing). The
-  operator's **enforced output contracts + a deterministic, faithfully-executed review loop**
-  force a verified artifact; free-form coordination doesn't.
-- **Protocol fidelity** — a *guarantee* for the operator (static structure), a *per-run
-  variable* for the LLM (drops a step 1/5; when it runs them, review can be hollow).
+*Caveat:* arm C's reliability rests on a **well-authored script** (that reviewer guard is
+load-bearing); a sloppier script could regress. And `write_paths` (`.md`-only) is **not
+enforceable** in a native workflow — it was prompt-only, so the Architect *could* have
+written code directly. slang bakes both (the review-loop grounding *and* enforced tool
+scoping) into the DSL/executor.
 
-**Honest caveats.** One feature, one model, 5 runs/arm — read as **directional**, not exact
-rates (**and the first B batch was confounded by a gitignored leftover design — corrected
-here**, 1/5 → 3/5). The failure is amplified by the `.md`-only Architect embedding code; a
-sharper driver (verification tools, stricter per-agent instructions) would narrow the gap —
-but that means **re-implementing the executor's contracts + validation**. That *is* the
-thesis: slang gives that floor **for free and provably**, and the gap **widens with
-coordination complexity**. Note too that turn-by-turn LLM coordination (arm B) is the very
-pattern Claude Code's **native dynamic-workflows** feature was shipped to replace — a fairer
-*modern* baseline is **arm C: slang vs. native dynamic workflows** (both codified
-orchestration). Harnesses: `convergence-rate.sh` (A), `driver.ts` + `driver-rate.sh` (B); raw
-data in `/tmp/slang/diag/`.
+### Head-to-head (three arms)
+
+| | A — Operator (slang) | C — Native dynamic workflow | B — Driver (turn-by-turn LLM) |
+|---|---|---|---|
+| **real implementation** | **5/5** | **5/5** | **3/5** (confounded batch: 1/5) |
+| orchestration | codified **DSL** | codified **JS script** | **live LLM** decisions |
+| per-run coordination LLM tokens | **0** | **~0** (deterministic script) | ~98–135k |
+| silent false-convergence | impossible | not observed (0/5) | **40%** (2/5) |
+| enforced output contracts | **yes** (validated + re-prompt) | partial (`schema` structured output) | no |
+| static analysis (deadlock/ref) | **yes** | no | no |
+| enforced tool scoping (`write_paths`/`deny`) | **yes** | no (prompt-only) | no (prompt-only) |
+| provable termination (budget/timeout) | **yes** | no (script must self-bound) | no |
+| auto-generated diagrams | **topology + trace (Mermaid)** | progress tree only | none |
+
+### Conclusions (the honest reframe)
+
+- **Reliability comes from *codified* orchestration, not from slang specifically.** Both arm A
+  (slang DSL) and arm C (native JS workflow) ship **5/5**; the turn-by-turn LLM coordinator
+  (arm B) ships **3/5** with a **40% silent false-convergence** rate. The dividing line is
+  *codified vs. live-LLM* coordination — and arm B's turn-by-turn model is precisely what
+  Claude Code's native dynamic-workflows feature was **shipped to replace**.
+- **So slang does *not* win on raw reliability against modern tooling** — a native dynamic
+  workflow matches it. slang's differentiation is the **guarantees and tooling on top of
+  codified orchestration** (the bottom half of the table): enforced output contracts, static
+  analysis (deadlock/unknown-ref/orphan detection), **enforced** `write_paths`/`deny` tool
+  scoping, provable termination, and **auto-generated topology + trace diagrams** — none of
+  which a raw JS workflow provides (arm C's reliability even *depended* on a hand-added
+  reviewer guard + prompt-only `.md` restriction that slang enforces by construction).
+- **Coordination cost:** ~0 per-run LLM for both codified arms (A, C) vs ~100k/run for the
+  live-LLM coordinator (B).
+
+**Honest caveats.** One feature, one model, 5 runs/arm — **directional**, not exact rates
+(and the first B batch was confounded by a gitignored leftover design — corrected here,
+1/5 → 3/5). Arm C's script was authored carefully (the reviewer guard is load-bearing) and
+run via the `Workflow` tool; a sloppier script could regress. The gap between *codified* and
+*live-LLM* orchestration widens with coordination complexity. **Positioning takeaway:** pitch
+slang against **turn-by-turn LLM coordination** (where it wins on reliability *and* cost), and
+against **native dynamic workflows** on **guarantees + diagrams**, not raw reliability.
+Harnesses: `convergence-rate.sh` (A), `driver.ts`+`driver-rate.sh` (B), `armc-workflow.js` (C);
+raw data in `/tmp/slang/diag/`.
