@@ -39,7 +39,11 @@ for (const item of flow.body) {
     role: interp(d.meta.role),
   })
 }
-const ACTION_TO_AGENT: Record<string, string> = { run_architect: "Architect", run_developer: "Developer", run_reviewer: "Reviewer" }
+// Derive the driver's available actions from the workflow's agents (generic — any agent set).
+const AGENT_NAMES = [...agents.keys()]
+const actionOf = (name: string) => `run_${name.toLowerCase()}`
+const ACTION_TO_AGENT: Record<string, string> = Object.fromEntries(AGENT_NAMES.map((n) => [actionOf(n), n]))
+const ACTIONS = [...AGENT_NAMES.map(actionOf), "finish"]
 
 if (process.env.DRIVER_DRY) {
   for (const [n, c] of agents) console.error(`${n}: tools=[${c.allowedTools.join(",")}] deny=${JSON.stringify(c.deny)} writePaths=${JSON.stringify(c.writePaths)} role="${(c.role ?? "").slice(0, 50)}..."`)
@@ -52,23 +56,22 @@ const sessions = new Map<string, string>() // resume each role-agent across call
 const DECISION = {
   type: "object",
   properties: {
-    next_action: { type: "string", enum: ["run_architect", "run_developer", "run_reviewer", "finish"] },
+    next_action: { type: "string", enum: ACTIONS },
     instructions: { type: "string", description: "Concise instructions for the chosen specialist (ignored for finish)." },
     rationale: { type: "string" },
   },
   required: ["next_action", "instructions", "rationale"],
   additionalProperties: false,
-} as const
+}
 
 const DESIGN_PATH = interp(params.design_path ? "${design_path}" : "plans/feature-design.md")
-const DRIVER_SYS = `You orchestrate a small team implementing ONE software feature in a real repo. You invoke ONE specialist at a time and decide the order yourself:
-- run_architect — writes a design document (.md only; CANNOT write code).
-- run_developer — implements the code per the design, slice by slice, with tests.
-- run_reviewer — reviews the developer's work against the design and reports pass/issues.
+const ROLE_LINES = AGENT_NAMES.map((n) => `- ${actionOf(n)} — ${(agents.get(n)!.role ?? "(no role)").replace(/\s+/g, " ").slice(0, 200)}`).join("\n")
+const DRIVER_SYS = `You orchestrate a team of specialists implementing ONE software feature in a real repo. You invoke ONE specialist at a time and decide the order yourself. The specialists (and their roles):
+${ROLE_LINES}
 
-STARTING STATE: the repo is CLEAN for this feature — there is NO design document and NO implementation yet. Nothing has been done until you invoke a specialist and it reports back. Do NOT assume any step is already complete; trust ONLY the specialists' actual results, never an assumption that work "already exists." The architect must CREATE the design at EXACTLY ${DESIGN_PATH} (it does not exist until then); the developer then implements the code; the reviewer then checks it.
+STARTING STATE: the repo is CLEAN for this feature — nothing has been produced yet (no design, no code, no tests, no docs). Nothing exists until you invoke a specialist and it reports back. Do NOT assume any step is already complete; trust ONLY the specialists' actual results, never an assumption that work "already exists". The design document lives at EXACTLY ${DESIGN_PATH}.
 
-Each step: pick next_action and give that specialist concise instructions (include all context they need — they see ONLY what you tell them, plus the repo files). When the feature is fully implemented (code files actually written) AND has been reviewed, choose "finish". Do not finish before the work has actually been implemented and reviewed by the specialists.`
+Each step: pick next_action and give that specialist concise instructions (include all context they need — they see ONLY what you tell them, plus the repo files). Respect dependencies (e.g. tests/review/docs come after the code they cover). Choose "finish" ONLY when EVERY required deliverable has actually been produced (all code files written, tested, reviewed, and any docs) — verify via the specialists, do not finish early.`
 
 let driverSession: string | undefined
 const tok = { input: 0, output: 0, cache_read: 0, cache_write: 0 }

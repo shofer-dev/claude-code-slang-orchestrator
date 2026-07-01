@@ -7,7 +7,7 @@ set -uo pipefail
 N=${1:-5}
 HARNESS=$(cd "$(dirname "$0")" && pwd)
 SERVER="$HARNESS/../../server"
-WF="$HARNESS/../workflows/implement-feature.slang"
+WF="${WF:-$HARNESS/../workflows/implement-feature.slang}"
 WT=/tmp/slang/shofer
 OUT=/tmp/slang/diag
 PARAMS="${PARAMS:-}"
@@ -23,7 +23,7 @@ for i in $(seq 1 "$N"); do
   LOG="$OUT/driver_$i.log"
   ( cd "$SERVER" && STAKE_TIMEOUT_MS=300000 DRIVER_MAX_STEPS=20 timeout 1800 \
       npx tsx "$HARNESS/driver.ts" "$WF" "$PARAMS" "$WT" > "$LOG" 2>&1 )
-  impl=$([ -f "$WT/$IMPL_FILE" ] && echo yes || echo no)
+  if [ -n "${CHECK_CMD:-}" ]; then impl=$(WT="$WT" bash -c "$CHECK_CMD"); else impl=$([ -f "$WT/$IMPL_FILE" ] && echo yes || echo no); fi
   row=$(tail -1 "$LOG" | python3 -c '
 import sys,json
 try: s=json.loads(sys.stdin.read())
