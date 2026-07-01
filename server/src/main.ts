@@ -165,16 +165,17 @@ function buildServer(cwd: string): McpServer {
 				"Parse and run a .slang workflow to completion, dispatching each agent through the Claude " +
 				"Agent SDK and validating results against output contracts. Identify it by `name` or `path`; " +
 				"pass flow `params` as an object. Returns the final flow status and each agent's output. " +
-				"(Phase 1: runs synchronously; long-running/background execution lands later.)",
+				"Rejects parse/static-analysis errors before running. Default runs synchronously (returns the final status + each agent's output). Pass background:true to start the run and return a workflow_id immediately, then poll get_trace/get_topology/get_workflow_state to watch it live; @Human escalation only works in synchronous runs.",
 			inputSchema: {
 				name: z.string().optional().describe("Flow name or .slang filename."),
 				path: z.string().optional().describe("Absolute path to a .slang file (overrides `name`)."),
 				source: z.string().optional().describe("Inline .slang source (overrides name/path) — e.g. a workflow an LLM generated on the fly."),
 				params: z.record(z.any()).optional().describe("Flow parameters as a key/value object."),
 				model: z.string().optional().describe("Default model for agents without api_configuration (e.g. sonnet)."),
+				background: z.boolean().optional().describe("Start the run and return a workflow_id immediately, then poll get_trace/get_topology/get_workflow_state. (@Human escalation unsupported in background.)"),
 			},
 		},
-		async ({ name, path: filePath, source: inlineSource, params, model }) => {
+		async ({ name, path: filePath, source: inlineSource, params, model, background }) => {
 			let source: string
 			if (inlineSource != null) {
 				source = inlineSource
@@ -194,18 +195,28 @@ function buildServer(cwd: string): McpServer {
 			if (hardErrors.length) return errorResult(`Static-analysis errors (fix before running):\n${hardErrors.join("\n")}`)
 			const flow = ast.flows[0]
 			if (!flow) return errorResult("No flow found in source.")
-			try {
-				const dispatcher = new AgentSdkDispatcher()
-				const events: WorkflowEvent[] = []
-				const { result, flowState } = await runWorkflow(flow, params ?? {}, dispatcher, {
-					cwd,
-					defaultModel: model ?? "sonnet",
-					onEscalate,
-					onEvent: (e) => events.push(e),
+			const dispatcher = new AgentSdkDispatcher()
+			const workflowId = randomUUID()
+			const events: WorkflowEvent[] = []
+			traces.set(workflowId, events)
+			// Same run options both modes: onStart registers the LIVE FlowState (so topology/state/trace
+			// are inspectable mid-run); onEvent streams into the trace. Elicitation only works while the
+			// tool call is open, so @Human escalation is wired for synchronous runs only.
+			const runOpts = {
+				cwd,
+				defaultModel: model ?? "sonnet",
+				onEvent: (e: WorkflowEvent) => events.push(e),
+				onStart: (fs: FlowState) => runs.set(workflowId, fs),
+				onEscalate: background ? undefined : onEscalate,
+			}
+			if (background) {
+				void runWorkflow(flow, params ?? {}, dispatcher, runOpts).catch((e) => {
+					events.push({ round: -1, kind: "error", detail: `run failed: ${(e as Error).message}` })
 				})
-				const workflowId = randomUUID()
-				runs.set(workflowId, flowState)
-				traces.set(workflowId, events)
+				return jsonResult({ workflow_id: workflowId, status: "running", poll: ["get_trace", "get_topology", "get_workflow_state"] })
+			}
+			try {
+				const { result } = await runWorkflow(flow, params ?? {}, dispatcher, runOpts)
 				return jsonResult({ workflow_id: workflowId, ...result })
 			} catch (e) {
 				return errorResult(`Run failed: ${(e as Error).stack ?? (e as Error).message}`)

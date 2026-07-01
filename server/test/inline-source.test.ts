@@ -82,3 +82,14 @@ test("inline run yields a usable trace (events → sequence diagram)", async () 
 	assert.match(d, /sequenceDiagram/)
 	assert.match(d, /Worker/)
 })
+
+test("onStart exposes the live FlowState (same object as the final result → mid-run inspection)", async () => {
+	let live: unknown
+	const r = analyzeSource(VALID)
+	const { flowState } = await runWorkflow(r.ast.flows[0]!, {}, new FakeDispatcher(() => JSON.stringify({ ok: true })), {
+		cwd: "/tmp",
+		onStart: (fs) => { live = fs },
+	})
+	assert.ok(live, "onStart was called")
+	assert.equal(live, flowState) // same mutable object the run mutates → get_topology/state see it live
+})

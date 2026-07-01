@@ -51,6 +51,9 @@ export interface RunOptions {
 	maxRounds?: number
 	/** Optional progress sink (one line per significant event). */
 	onEvent?: (e: WorkflowEvent) => void
+	/** Called once with the live (mutable) FlowState right after init — lets a caller register
+	 * the run for live inspection (topology/state/trace) before it completes. */
+	onStart?: (flowState: FlowState) => void
 	/**
 	 * Handler for `escalate @Human` — resolves with the human's answer, which is delivered to
 	 * the escalating agent as mail from `@Human`. Without it, an escalation fails the flow.
@@ -236,6 +239,7 @@ export async function runWorkflow(
 	opts: RunOptions,
 ): Promise<{ result: RunResult; flowState: FlowState }> {
 	const { flowState, programs, agentDecls } = initFlowState(flow, params)
+	opts.onStart?.(flowState) // register the live state for inspection before the run completes
 	// Precedence: explicit opts.maxRounds > the flow's own `budget: rounds(N)` > the safety default.
 	const maxRounds = opts.maxRounds ?? flowBudgetRounds(flow) ?? DEFAULT_MAX_ROUNDS
 	const emit = opts.onEvent ?? (() => {})

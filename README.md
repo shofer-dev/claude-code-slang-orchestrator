@@ -83,10 +83,14 @@ Install it through Claude Code's plugin mechanism to expose the tools automatica
 | Tool | Purpose |
 |------|---------|
 | `list_workflows` | Discover `.slang` files (name, title, params, agent count). |
-| `validate_workflow` | Parse + static analysis (deadlocks, unknown refs, orphan outputs) without running. |
-| `run_workflow` | Run a workflow to completion; returns flow status + each agent's output. |
-| `get_workflow_state` | Serialized `FlowState` for a finished run (by `workflow_id`). |
-| `get_topology` | Run topology as a Mermaid flowchart (by `workflow_id`). |
+| `get_slang_grammar` | Concise grammar cheatsheet + example, so an LLM can **generate** a workflow to run inline. |
+| `validate_workflow` | Parse + static analysis (deadlocks, unknown refs, orphan outputs) without running. Accepts a `name`/`path` **or** inline `source`. |
+| `run_workflow` | Run a workflow by `name`/`path` **or** inline `source` (rejects parse/static-analysis errors first). Synchronous by default; `background:true` returns a `workflow_id` immediately to poll live. |
+| `get_workflow_state` | Serialized `FlowState` (per-agent status, round, budget) by `workflow_id` — live during a `background` run. |
+| `get_topology` | Run topology as a Mermaid **flowchart** (status-colored snapshot) by `workflow_id`. |
+| `get_trace` | Execution **trace** as a Mermaid **sequenceDiagram** + raw event log (who staked/routed to whom, commits, escalations, terminal) by `workflow_id`. |
+
+**Generate-and-run loop:** `get_slang_grammar` → author slang → `validate_workflow{source}` → `run_workflow{source, background:true}` → poll `get_topology` / `get_trace` while it runs. The workflow is authored by an LLM but **executed deterministically** (contracts enforced, always terminates). `@Human` escalation works in synchronous runs only (interactive elicitation needs the tool call to stay open).
 
 ## Develop
 
