@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Convergence-rate harness: run the SAME workflow + params from the SAME clean worktree N
-# times (sequential — they share one worktree), recording each run's terminal status.
+# times (sequential â they share one worktree), recording each run's terminal status.
 #   bash convergence-rate.sh [N]
 set -uo pipefail
 N=${1:-5}
@@ -16,6 +16,7 @@ echo "run,status,rounds,elapsed_s,launch_errors,impl_written" > "$CSV"
 for i in $(seq 1 "$N"); do
   git -C "$WT" checkout -- . >/dev/null 2>&1
   git -C "$WT" clean -fdq -e node_modules -e dist 2>/dev/null
+  rm -rf "$WT/plans" 2>/dev/null   # design lives in gitignored plans/ — clean -fd skips it
   LOG="$OUT/rate_$i.log"
   ( cd "$SERVER" && STAKE_TIMEOUT_MS=300000 SLANG_MAX_ROUNDS=30 timeout 1800 \
       npx tsx "$HARNESS/diagnose-real.ts" "$WF" "$PARAMS" "$WT" > "$LOG" 2>&1 )

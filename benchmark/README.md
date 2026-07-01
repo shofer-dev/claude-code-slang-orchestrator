@@ -82,9 +82,11 @@ Arm B — **LLM-orchestrated (Driver)**:
       timeout (always terminates), `write_paths` (command-hook backed; works in the worktree),
       `deny:` tool control, `create_design` termination tune. 49 unit tests pass.
 - [x] **Arm A rate: 5/5 converged** (`convergence-rate.sh`), 0 launch errors, impl every run.
-- [x] **Arm B rate** (`driver-rate.sh`): fair LLM driver **1/5 real implementations** (5/5
-      self-report "converged"); ~98–124k coordination tokens/run (arm A: 0). Naive-prompt
-      driver was 3/3 false-convergence — reported as a methodology note, not the result.
-      Full head-to-head + mechanism in [`results/RESULTS.md`](results/RESULTS.md).
-- [ ] Second feature + more reps (generalize beyond `formatDuration`; current data is
-      one feature × 5 runs/arm — directional, not exact rates).
+- [x] **Arm B rate** (`driver-rate.sh`): fair LLM driver **3/5 real implementations**
+      (5/5 self-report "converged" → **40% silent false-convergence**); ~98–135k coordination
+      tokens/run (arm A: 0). *Correction:* an earlier batch scored 1/5 but was confounded by a
+      gitignored leftover design (reset now `rm -rf plans`); 3/5 is the clean number. Two
+      failure modes + mechanism in [`results/RESULTS.md`](results/RESULTS.md).
+- [ ] **Arm C** — slang vs. Claude Code's **native dynamic-workflows** feature (the modern,
+      fairer baseline: both codified orchestration).
+- [ ] Second feature + more reps (one feature × 5 runs/arm is directional, not exact rates).

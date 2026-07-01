@@ -17,6 +17,7 @@ echo "run,converged,steps,architect,developer,reviewer,reviewed_final,driver_tok
 for i in $(seq 1 "$N"); do
   git -C "$WT" checkout -- . >/dev/null 2>&1
   git -C "$WT" clean -fdq -e node_modules -e dist 2>/dev/null
+  rm -rf "$WT/plans" 2>/dev/null   # design lives in gitignored plans/ — clean -fd skips it
   LOG="$OUT/driver_$i.log"
   ( cd "$SERVER" && STAKE_TIMEOUT_MS=300000 DRIVER_MAX_STEPS=20 timeout 1800 \
       npx tsx "$HARNESS/driver.ts" "$WF" "$PARAMS" "$WT" > "$LOG" 2>&1 )

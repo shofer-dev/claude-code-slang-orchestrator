@@ -179,61 +179,81 @@ it's a methodology note (cf. live-memory's `--strict-mcp-config` confound), not 
 
 **Fair prompt — the real baseline.** Told the driver the true clean starting state, the role
 dependencies, and "trust ONLY the specialists' actual results, never assume work exists" —
-**without** scripting the order (drift still possible). 5 runs:
+**without** scripting the order (drift still possible).
 
-| run | converged (self-report) | ran A→D→R | final work reviewed | **real impl** | driver tokens |
-|---|---|---|---|---|---|
-| 1 | ✓ | ✓ | ✓ | **no**  | 98.0k |
-| 2 | ✓ | ✓ | ✓ | **no**  | 98.3k |
-| 3 | ✓ | ✓ | ✓ | **no**  | 99.1k |
-| 4 | ✓ | ✓ | ✓ | **yes** | 98.2k |
-| 5 | ✓ | ✓ | ✗ | **no**  | 124.2k |
+**A harness confound found + fixed (do not skip this).** `plans/` is **gitignored** in shofer
+(`.gitignore:57`), so the worktree reset (`git clean -fd`, no `-x`) **left the previous run's
+code-laden design in place** — priming both the driver and the Developer that work "already
+exists." The first batch (with the confound) scored **1/5**; after fixing the reset
+(`rm -rf plans`) and re-running, the fair driver scores **3/5**. The **3/5 is the honest
+number**; the confounded 1/5 is retained only to show the effect.
 
-**5/5 self-report "converged" and ran the full protocol — yet only 1/5 shipped real code.**
-Coordination ~98–124k tokens/run (mostly cache-read; ~0 for arm A).
+| run | converged (self-report) | ran A→D→R | final work reviewed | **real impl** | driver tok | failure |
+|---|---|---|---|---|---|---|
+| 1 | ✓ | ✓ | ✓ | **yes** | 98.3k | — |
+| 2 | ✓ | ✓ | ✓ | **yes** | 98.4k | — |
+| 3 | ✓ | ✓ | ✓ | **no**  | 97.9k | Developer hallucinated "done" |
+| 4 | ✓ | ✓ | ✓ | **yes** | 97.9k | — |
+| 5 | ✓ | ✗ (1 step) | ✗ | **no**  | 134.7k | driver skipped A+D, "all present" |
 
-### Mechanism — why the fair driver false-converges
+**All 5 self-report "converged"; 3/5 ship real code — i.e. a 40% *silent false-convergence*
+rate** (reports success, ships nothing). Coordination ~98–135k tokens/run (~0 for arm A).
 
-The fair prompt fixed the *driver's* step-skipping, so the failure moved **one level down**
-(root-caused from the run logs + the produced artifact):
+### Mechanism — two failure modes (both instrumented)
+
+**(a) Developer-level hallucination (run 3; dominant mode).** Root-caused from an instrumented
+run + the artifact:
 1. The Architect is `write_paths`-restricted to `.md`, so — unable to write code — it **embeds
-   the full implementation as a code block in the design `.md`** (verified: the design was 163
-   lines including the complete `formatDuration` body).
+   the full implementation as a code block in the design `.md`** (verified: the design carried
+   the complete `formatDuration` body, 2 code blocks).
 2. The Developer, given the driver's brief free-form instruction, reads the design, sees
-   complete code, and reports **"done — both files already present"** *without creating the
-   `.ts`*.
-3. The driver (neutral cwd, no verification) trusts it; the Reviewer "reviews" nonexistent
-   code and passes; the driver finishes. `impl=no`.
+   complete code, and — **stochastically** — either *verifies the filesystem and writes* (the
+   3/5: instrumented run showed it run `ls src/utils/` → "does not exist" → wrote 3 files → 9
+   tests pass), or *trusts the design and reports* **"done — both files already present"**
+   without writing (the 2/5).
+3. When it doesn't write, the driver (neutral cwd, no verification) trusts it and the Reviewer
+   "reviews" nonexistent code and passes.
 
-**Arm A gets the identical design yet implements 5/5** — its Developer's *authored* stake
-prompt + a validated `{done,summary}` contract + the executor faithfully running the
-review→fix loop (Reviewer caught missing tests → Developer fixed → real files) **ground the
-agent** where the driver's loose coordination is fooled.
+**(b) Coordinator-level drift (run 5).** The driver itself declared *"design, implementation,
+and spec are all present, 15/15 tests pass,"* ran only the Reviewer, and finished in **one
+step** — skipping the Architect and Developer entirely.
+
+**Arm A gets the identical (code-laden) design yet implements 5/5** — its Developer's
+*authored* stake prompt + a validated `{done,summary}` contract + the executor faithfully
+running the review→fix loop (Reviewer caught missing tests → Developer fixed → real files)
+**force a verified artifact** where the driver's free-form relay lets an unverified claim reach
+"done." The essence: free-form coordination never *requires* any step to produce a verified
+result; whether the Developer bothers to check + write is left to chance.
 
 ### Head-to-head
 
 | | A — Operator (slang) | B — Driver (fair LLM) |
 |---|---|---|
 | converged (self-report) | 5/5 | 5/5 |
-| **real implementation** | **5/5** | **1/5** |
-| protocol fidelity | **guaranteed (by construction)** | ran 5/5, but **hollow** (reviewing no code) |
-| coordination LLM tokens / run | **0** | ~98–124k |
-| false-convergence possible | **no** | yes (naive 3/3, fair 4/5) |
+| **real implementation** | **5/5** | **3/5** (clean; confounded batch was 1/5) |
+| protocol fidelity | **guaranteed (by construction)** | ran full protocol 4/5; drifted 1/5; passing review can be hollow |
+| coordination LLM tokens / run | **0** | ~98–135k |
+| silent false-convergence | **impossible** | **40%** (2/5 report success, ship nothing) |
 
 ### Conclusions
 
 - **Coordination cost** — the clean, guaranteed delta: **0 vs ~100k tokens/run**, pure
   overhead on top of identical agent work.
-- **Reliability** — the headline: same agents, same task, the operator ships **5/5** vs the
-  LLM coordinator **1/5**, because **enforced output contracts + a deterministic loop** catch
-  agent hallucination that free-form coordination can't.
+- **Reliability** — same agents, same task: the operator ships **5/5** vs the LLM coordinator
+  **3/5** — a **40% silent false-convergence** rate (reports "converged," ships nothing). The
+  operator's **enforced output contracts + a deterministic, faithfully-executed review loop**
+  force a verified artifact; free-form coordination doesn't.
 - **Protocol fidelity** — a *guarantee* for the operator (static structure), a *per-run
-  variable* for the LLM (naive: skips steps; fair: runs them but hollow).
+  variable* for the LLM (drops a step 1/5; when it runs them, review can be hollow).
 
 **Honest caveats.** One feature, one model, 5 runs/arm — read as **directional**, not exact
-rates. The failure is amplified by the `.md`-only Architect embedding code; a sharper driver
-(verification tools, stricter per-agent instructions) would narrow the gap — but that means
-**re-implementing the executor's contracts + validation**. That *is* the thesis: slang gives
-that floor **for free and provably**, and the gap **widens with coordination complexity**
-(more agents, loops, longer context) — the regime the product targets. Harnesses:
-`convergence-rate.sh` (A), `driver.ts` + `driver-rate.sh` (B); raw data in `/tmp/slang/diag/`.
+rates (**and the first B batch was confounded by a gitignored leftover design — corrected
+here**, 1/5 → 3/5). The failure is amplified by the `.md`-only Architect embedding code; a
+sharper driver (verification tools, stricter per-agent instructions) would narrow the gap —
+but that means **re-implementing the executor's contracts + validation**. That *is* the
+thesis: slang gives that floor **for free and provably**, and the gap **widens with
+coordination complexity**. Note too that turn-by-turn LLM coordination (arm B) is the very
+pattern Claude Code's **native dynamic-workflows** feature was shipped to replace — a fairer
+*modern* baseline is **arm C: slang vs. native dynamic workflows** (both codified
+orchestration). Harnesses: `convergence-rate.sh` (A), `driver.ts` + `driver-rate.sh` (B); raw
+data in `/tmp/slang/diag/`.
