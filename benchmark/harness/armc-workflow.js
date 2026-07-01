@@ -5,7 +5,10 @@ export const meta = {
 }
 
 const WT = '/tmp/slang/shofer'
-// Parameterized by args so the same script runs any feature; defaults = formatDuration (feature 1).
+// NOTE: `args` did NOT propagate to the agents when this was run via {scriptPath, args} — the
+// defaults below silently won, so it built formatDuration even when asked for formatBytes. For a
+// different feature, hardcode it in an inline `script` instead (see armc-workflow-formatbytes.js).
+// This file stands as the feature-1 (formatDuration) arm-C harness of record.
 const FEATURE = (args && args.feature) || 'add a pure helper formatDuration(ms:number):string in src/utils that renders a duration human-readably (500->500ms, 1500->1.5s, 65000->1m 5s), plus a vitest spec'
 const IMPL = (args && args.implFile) || 'src/utils/formatDuration.ts'
 const EXAMPLES = (args && args.examples) || '500->500ms, 1500->1.5s, 65000->1m 5s'

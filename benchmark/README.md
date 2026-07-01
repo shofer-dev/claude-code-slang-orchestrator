@@ -91,4 +91,8 @@ Arm B — **LLM-orchestrated (Driver)**:
       **5/5 real implementations**, ~0 per-run coordination LLM (codified JS script). Matches
       arm A on reliability → the finding is *codified vs. turn-by-turn*, and slang's edge over
       the native feature is **guarantees + diagrams**, not raw reliability. See RESULTS.
-- [ ] Second feature + more reps (one feature × 5 runs/arm is directional, not exact rates).
+- [x] **Second feature** (`formatBytes`, all 3 arms × 5): pattern generalizes — A **5/5**,
+      C **5/5**, B **3/5** (combined across 2 features: codified A/C = 10/10, turn-by-turn B = 6/10).
+      Two harness bugs found + corrected mid-run (arm-B leftover-design confound; arm-C `Workflow`
+      args-propagation) — see RESULTS.
+- [ ] More models + more reps (still one model, directional).

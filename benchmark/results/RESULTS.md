@@ -249,25 +249,41 @@ scoping) into the DSL/executor.
 
 ### Head-to-head (three arms)
 
+Real implementations across **two features** — formatDuration (f1) + formatBytes (f2), 5 runs each:
+
 | | A — Operator (slang) | C — Native dynamic workflow | B — Driver (turn-by-turn LLM) |
 |---|---|---|---|
-| **real implementation** | **5/5** | **5/5** | **3/5** (confounded batch: 1/5) |
+| **real impl — f1** | **5/5** | **5/5** | **3/5** |
+| **real impl — f2** | **5/5** | **5/5** | **3/5** |
+| **combined** | **10/10** | **10/10** | **6/10** |
 | orchestration | codified **DSL** | codified **JS script** | **live LLM** decisions |
-| per-run coordination LLM tokens | **0** | **~0** (deterministic script) | ~98–135k |
-| silent false-convergence | impossible | not observed (0/5) | **40%** (2/5) |
+| per-run coordination LLM tokens | **0** | **~0** (deterministic script) | ~98–154k |
+| silent false-convergence | impossible | not observed (0/10) | **~40%** (4/10) |
 | enforced output contracts | **yes** (validated + re-prompt) | partial (`schema` structured output) | no |
 | static analysis (deadlock/ref) | **yes** | no | no |
 | enforced tool scoping (`write_paths`/`deny`) | **yes** | no (prompt-only) | no (prompt-only) |
 | provable termination (budget/timeout) | **yes** | no (script must self-bound) | no |
 | auto-generated diagrams | **topology + trace (Mermaid)** | progress tree only | none |
 
+**Second feature (`formatBytes`) confirms the pattern** — same harness, distinct task, 5 runs/arm:
+arm A **5/5**, arm C **5/5**, arm B **3/5** — identical shape to formatDuration. So the split is
+robust across two features (codified A/C = **10/10**; turn-by-turn B = **6/10**), not task-specific.
+
+> *Harness honesty note:* the **first** arm-C/f2 attempt scored 0/5 but was **invalid** — a
+> `Workflow` `args`-propagation bug meant the workflow silently built *formatDuration* (its
+> hardcoded default) while we checked for `formatBytes`. Caught by inspecting the design (**0**
+> mentions of the target feature). Re-run with the feature hardcoded inline → **5/5**. The lesson
+> cuts both ways: even the native-workflow path has footguns that need per-run verification —
+> which is exactly what slang's enforced contracts provide.
+
 ### Conclusions (the honest reframe)
 
-- **Reliability comes from *codified* orchestration, not from slang specifically.** Both arm A
-  (slang DSL) and arm C (native JS workflow) ship **5/5**; the turn-by-turn LLM coordinator
-  (arm B) ships **3/5** with a **40% silent false-convergence** rate. The dividing line is
-  *codified vs. live-LLM* coordination — and arm B's turn-by-turn model is precisely what
-  Claude Code's native dynamic-workflows feature was **shipped to replace**.
+- **Reliability comes from *codified* orchestration, not from slang specifically.** Across **two
+  features** (10 runs each) both arm A (slang DSL) and arm C (native JS workflow) ship **10/10**;
+  the turn-by-turn LLM coordinator (arm B) ships **6/10** with a **~40% silent false-convergence**
+  rate — consistent on both tasks. The dividing line is *codified vs. live-LLM* coordination —
+  and arm B's turn-by-turn model is precisely what Claude Code's native dynamic-workflows feature
+  was **shipped to replace**.
 - **So slang does *not* win on raw reliability against modern tooling** — a native dynamic
   workflow matches it. slang's differentiation is the **guarantees and tooling on top of
   codified orchestration** (the bottom half of the table): enforced output contracts, static
@@ -278,12 +294,14 @@ scoping) into the DSL/executor.
 - **Coordination cost:** ~0 per-run LLM for both codified arms (A, C) vs ~100k/run for the
   live-LLM coordinator (B).
 
-**Honest caveats.** One feature, one model, 5 runs/arm — **directional**, not exact rates
-(and the first B batch was confounded by a gitignored leftover design — corrected here,
-1/5 → 3/5). Arm C's script was authored carefully (the reviewer guard is load-bearing) and
-run via the `Workflow` tool; a sloppier script could regress. The gap between *codified* and
-*live-LLM* orchestration widens with coordination complexity. **Positioning takeaway:** pitch
-slang against **turn-by-turn LLM coordination** (where it wins on reliability *and* cost), and
-against **native dynamic workflows** on **guarantees + diagrams**, not raw reliability.
+**Honest caveats.** Two features, one model, 5 runs/arm/feature — firmer than a single feature
+but still **directional**, not exact rates. Two harness bugs were found and corrected mid-way
+(both *inflated an arm's failure*, and both are documented above): arm B's first batch had a
+gitignored leftover design (1/5 → 3/5), and arm C/f2's first batch had a `Workflow` args bug
+(bogus 0/5 → 5/5). Arm C's scripts were authored carefully (the reviewer guard is load-bearing);
+a sloppier script could regress. The gap between *codified* and *live-LLM* orchestration widens
+with coordination complexity. **Positioning takeaway:** pitch slang against **turn-by-turn LLM
+coordination** (where it wins on reliability *and* cost), and against **native dynamic workflows**
+on **guarantees + diagrams**, not raw reliability.
 Harnesses: `convergence-rate.sh` (A), `driver.ts`+`driver-rate.sh` (B), `armc-workflow.js` (C);
 raw data in `/tmp/slang/diag/`.
