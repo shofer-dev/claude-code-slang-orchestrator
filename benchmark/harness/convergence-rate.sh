@@ -9,8 +9,10 @@ SERVER="$HARNESS/../../server"
 WF="$HARNESS/../workflows/implement-feature.slang"
 WT=/tmp/slang/shofer
 OUT=/tmp/slang/diag
-PARAMS='{"feature":"format-duration-util: add a pure helper formatDuration(ms:number):string in src/utils that renders a duration human-readably (500->500ms, 1500->1.5s, 65000->1m 5s), plus a vitest spec","design_path":"plans/feature-design.md"}'
-CSV="$OUT/rate.csv"
+PARAMS="${PARAMS:-}"
+[ -n "$PARAMS" ] || PARAMS='{"feature":"format-duration-util: add a pure helper formatDuration(ms:number):string in src/utils that renders a duration human-readably (500->500ms, 1500->1.5s, 65000->1m 5s), plus a vitest spec","design_path":"plans/feature-design.md"}'
+IMPL_FILE="${IMPL_FILE:-src/utils/formatDuration.ts}"
+CSV="$OUT/${CSV_NAME:-rate}.csv"
 mkdir -p "$OUT"
 echo "run,status,rounds,elapsed_s,launch_errors,impl_written" > "$CSV"
 for i in $(seq 1 "$N"); do
@@ -28,7 +30,7 @@ for i in $(seq 1 "$N"); do
     elapsed=$(sed -E 's/.*elapsed:([0-9]+)s.*/\1/' <<<"$st_line")
   fi
   lerr=$(grep -c "failed to launch" "$LOG")
-  impl=$([ -f "$WT/src/utils/formatDuration.ts" ] && echo yes || echo no)
+  impl=$([ -f "$WT/$IMPL_FILE" ] && echo yes || echo no)
   echo "$i,$status,$rounds,$elapsed,$lerr,$impl" >> "$CSV"
   echo "[rate] run $i: $status rounds=$rounds elapsed=${elapsed}s launch_err=$lerr impl=$impl"
 done

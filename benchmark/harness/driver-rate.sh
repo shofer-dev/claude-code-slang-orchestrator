@@ -10,8 +10,10 @@ SERVER="$HARNESS/../../server"
 WF="$HARNESS/../workflows/implement-feature.slang"
 WT=/tmp/slang/shofer
 OUT=/tmp/slang/diag
-PARAMS='{"feature":"format-duration-util: add a pure helper formatDuration(ms:number):string in src/utils that renders a duration human-readably (500->500ms, 1500->1.5s, 65000->1m 5s), plus a vitest spec","design_path":"plans/feature-design.md"}'
-CSV="$OUT/driver-rate.csv"
+PARAMS="${PARAMS:-}"
+[ -n "$PARAMS" ] || PARAMS='{"feature":"format-duration-util: add a pure helper formatDuration(ms:number):string in src/utils that renders a duration human-readably (500->500ms, 1500->1.5s, 65000->1m 5s), plus a vitest spec","design_path":"plans/feature-design.md"}'
+IMPL_FILE="${IMPL_FILE:-src/utils/formatDuration.ts}"
+CSV="$OUT/${CSV_NAME:-driver-rate}.csv"
 mkdir -p "$OUT"
 echo "run,converged,steps,architect,developer,reviewer,reviewed_final,driver_tokens,impl,elapsed_s" > "$CSV"
 for i in $(seq 1 "$N"); do
@@ -21,7 +23,7 @@ for i in $(seq 1 "$N"); do
   LOG="$OUT/driver_$i.log"
   ( cd "$SERVER" && STAKE_TIMEOUT_MS=300000 DRIVER_MAX_STEPS=20 timeout 1800 \
       npx tsx "$HARNESS/driver.ts" "$WF" "$PARAMS" "$WT" > "$LOG" 2>&1 )
-  impl=$([ -f "$WT/src/utils/formatDuration.ts" ] && echo yes || echo no)
+  impl=$([ -f "$WT/$IMPL_FILE" ] && echo yes || echo no)
   row=$(tail -1 "$LOG" | python3 -c '
 import sys,json
 try: s=json.loads(sys.stdin.read())
