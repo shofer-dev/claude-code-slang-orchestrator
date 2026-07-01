@@ -1,22 +1,32 @@
 # slang-workflows
 
-Run deterministic, `.slang`-driven **multi-agent workflows** inside Claude Code.
+Run **provable**, `.slang`-driven **multi-agent workflows** inside Claude Code.
 
-A non-LLM state machine (the *slang executor*) runs inside an MCP server and coordinates
-agents; each agent is a Claude **Agent SDK** session. The top-level Claude Code session only
-*triggers* and *observes* runs — it never makes a coordination decision, so the workflow is a
-provable state machine, not an LLM improvising orchestration.
+A non-LLM state machine (the *slang executor*) runs inside an MCP server and coordinates agents;
+each agent is a Claude **Agent SDK** session. You declare the collaboration in a typed `.slang`
+file and the executor *enforces* it — typed output contracts, static analysis, tool-scoping, and
+provable termination — instead of leaving coordination to the model. The top-level Claude Code
+session only *triggers* and *observes*; it never makes a coordination decision.
+
+Claude Code's native **dynamic workflows** also codify orchestration (Claude writes a JS script);
+slang's difference is that the structure is **enforced and statically analyzable**, and runs render
+as **Mermaid topology + trace diagrams**. See the [benchmark](benchmark/) for the A/B/C head-to-head.
 
 > Design and rationale: [`DESIGN.md`](DESIGN.md). Language reference: [`slang_specs.md`](slang_specs.md).
 
 ## What works today
 
-- Discover / validate / run `.slang` workflows (MCP tools below).
-- Deterministic executor: stake → output-contract validation + retry → mailbox routing →
+- Discover / validate / run `.slang` workflows — **authored or LLM-generated inline** (MCP tools below).
+- Deterministic executor: stake → **output-contract** validation + retry → mailbox routing →
   convergence; **multi-agent** flows; **session resume** (one agent = one session across stakes);
   `escalate @Human`.
-- Output contracts: **structural** (`output: {...}`, enforced via SDK `outputFormat`) +
-  **semantic** (`where <expr>`).
+- **Output contracts**: structural (`output: {...}`, via SDK `outputFormat`) + semantic (`where <expr>`).
+- **Enforced tool scoping**: `write_paths` (Write/Edit restricted to path globs, via a PreToolUse
+  command hook) and `deny` (remove native or MCP tools).
+- **Static analysis** (`validate_workflow`): deadlock / unknown-ref / orphan-output detection before running.
+- **Provable termination**: `budget: rounds(N)` + per-stake timeouts — the run always finishes.
+- **Diagrams**: `get_topology` (Mermaid flowchart) + `get_trace` (Mermaid sequence + event log).
+- **Synchronous or background** runs (`background:true`) with live polling of state/topology/trace.
 
 See [`DESIGN.md` § Implementation Status](DESIGN.md#implementation-status) for the full matrix.
 

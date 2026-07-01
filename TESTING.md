@@ -25,7 +25,7 @@ pnpm typecheck     # tsc --noEmit over the whole server
 ## 2. Automated tests — no model calls, no cost
 
 ```bash
-pnpm test          # 40 tests
+pnpm test          # 57 tests
 ```
 
 No API key, no `claude` CLI, no network. The tests mock at two different seams:
@@ -39,13 +39,14 @@ SDK entirely and exercise the deterministic executor.
 | `test/tool-group-map.test.ts` | slang tool-groups → Claude Code tools (each group, `mcp` expansion, empties, de-dup). |
 | `test/executor.test.ts` | Executor loop: contract retry, `where` reject→accept, retry-exhaustion → error, multi-agent routing, escalate ±handler, session-resume threading. |
 | `test/conformance.test.ts` | **Every workflow in `server/test/fixtures/`** is parsed, statically analyzed, and **run to convergence** under a schema-conforming mock. |
+| `test/inline-source.test.ts` | Inline/generated workflows: `analyzeSource` (valid / parse errors / hard static errors), inline generate→validate→run, `eventsToSequenceDiagram` (the `get_trace` diagram), and `onStart` exposing the live `FlowState` (background polling). |
 
 **B. Boundary integration test — mock the SDK `query()`.** This is the seam where control is
 handed to the Agent SDK; it injects a fake `query()` and pins both edges of that call.
 
 | Suite | What it covers |
 |-------|----------------|
-| `test/agent-sdk-dispatcher.test.ts` | **Outbound:** `StakeRequest` → SDK `Options` (cwd, allowedTools, `bypassPermissions`, model, append-preset system prompt, `resume`, `outputFormat`, `pathToClaudeCodeExecutable`; unset fields omitted). **Inbound:** SDK message stream → `StakeResult` (session-id capture, success `result` + `structured_output`, error-subtype mapping, no-result error). |
+| `test/agent-sdk-dispatcher.test.ts` | **Outbound:** `StakeRequest` → SDK `Options` (cwd, allowedTools, `bypassPermissions`, model, append-preset system prompt, `resume`, `outputFormat`, `pathToClaudeCodeExecutable`; unset fields omitted) — plus `deny` → `disallowedTools`, `write_paths` → PreToolUse command-hook + `SLANG_WRITE_PATHS` env (`globToRegExp`), and per-stake timeout / time-budget prompt note. **Inbound:** SDK message stream → `StakeResult` (session-id capture, success `result` + `structured_output`, error-subtype mapping, no-result error). |
 
 > **What the automated tests do NOT cover** — by design; these need § 3:
 > - Anything *inside* `query()` — the real CLI, API, model, and `outputFormat` enforcement.
