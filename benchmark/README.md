@@ -82,6 +82,9 @@ Arm B — **LLM-orchestrated (Driver)**:
       timeout (always terminates), `write_paths` (command-hook backed; works in the worktree),
       `deny:` tool control, `create_design` termination tune. 49 unit tests pass.
 - [x] **Arm A rate: 5/5 converged** (`convergence-rate.sh`), 0 launch errors, impl every run.
-- [~] **Arm B rate** (`driver-rate.sh`) — running; per-run protocol-fidelity + coordination
-      tokens. See [`results/RESULTS.md`](results/RESULTS.md).
-- [ ] Second feature (generalize beyond `formatDuration`).
+- [x] **Arm B rate** (`driver-rate.sh`): fair LLM driver **1/5 real implementations** (5/5
+      self-report "converged"); ~98–124k coordination tokens/run (arm A: 0). Naive-prompt
+      driver was 3/3 false-convergence — reported as a methodology note, not the result.
+      Full head-to-head + mechanism in [`results/RESULTS.md`](results/RESULTS.md).
+- [ ] Second feature + more reps (generalize beyond `formatDuration`; current data is
+      one feature × 5 runs/arm — directional, not exact rates).

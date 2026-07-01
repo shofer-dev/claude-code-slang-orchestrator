@@ -142,10 +142,98 @@ Round count is stable (8–9, the canonical happy/one-reject paths); wall-clock 
 (~6.5–14 min) with agent speed. The hardened `implement-feature` is now reliable enough to
 anchor the two-arm benchmark.
 
-### Implication for the benchmark
+## Two-arm comparison — Operator (slang) vs Driver (LLM)
 
-`implement-feature` is **not benchmark-ready** until its convergence + the budget
-plumbing + agent-hang robustness are addressed. The A/B reliability comparison needs a
-workflow the **slang arm itself completes reliably**. Recommended: establish the
-benchmark on a simpler, reliably-converging multi-agent workflow first (pipeline, or a
-fixed single-round review), then return to implement-feature once it's hardened.
+> Supersedes the earlier caution that `implement-feature` wasn't benchmark-ready: after the
+> hardening above (arm A = 5/5), the full A/B was run.
+
+**Setup (identical task, verified).** `harness/convergence-rate.sh` (arm A) and
+`harness/driver-rate.sh` (arm B) run a **byte-identical** feature + `design_path`, the same
+`implement-feature.slang`, the same worktree (`/tmp/slang/shofer` @ `5429efcab`, reset clean
+per run), the **same three agents** (arm B parses Architect/Developer/Reviewer from the same
+workflow → identical tools/role/`write_paths`), and the same model (`sonnet`). The single
+intended difference is **who coordinates**: the deterministic slang executor (A) vs an LLM
+that decides each step (B, `harness/driver.ts`). *Honest framing:* the coordinator difference
+necessarily changes **how agents are instructed** (authored stake prompts + validated output
+contracts vs the driver's generated prose) — a fair **paradigm** comparison, not a clean
+single-variable ablation.
+
+**The metric that matters — "converged" ≠ shipped.** Both arms *self-report* convergence. We
+ignore that and check the **filesystem**: does `src/utils/formatDuration.ts` exist? "Real
+impl" = the code is on disk.
+
+### Arm A — Operator (slang): 5/5 real implementations
+
+The 5/5 table above — all 5 wrote the impl, 0 launch errors. **Coordination LLM tokens = 0**
+(the executor is deterministic code); protocol (design→implement→review→done) **guaranteed by
+construction**.
+
+### Arm B — Driver (LLM): a methodology fork first (avoid strawman)
+
+**Naive prompt — discarded (3/3 false convergence).** The first driver prompt left the
+starting state implicit and named the design path as if it existed. The driver **hallucinated
+the work was already done** and chose `finish` after 0–3 steps **without writing code** —
+`converged=true`, `impl=no` every time (one run finished at **0 steps**, never invoking an
+agent; 179k–276k coordination tokens). That measured a bad prompt, not LLM orchestration — so
+it's a methodology note (cf. live-memory's `--strict-mcp-config` confound), not the result.
+
+**Fair prompt — the real baseline.** Told the driver the true clean starting state, the role
+dependencies, and "trust ONLY the specialists' actual results, never assume work exists" —
+**without** scripting the order (drift still possible). 5 runs:
+
+| run | converged (self-report) | ran A→D→R | final work reviewed | **real impl** | driver tokens |
+|---|---|---|---|---|---|
+| 1 | ✓ | ✓ | ✓ | **no**  | 98.0k |
+| 2 | ✓ | ✓ | ✓ | **no**  | 98.3k |
+| 3 | ✓ | ✓ | ✓ | **no**  | 99.1k |
+| 4 | ✓ | ✓ | ✓ | **yes** | 98.2k |
+| 5 | ✓ | ✓ | ✗ | **no**  | 124.2k |
+
+**5/5 self-report "converged" and ran the full protocol — yet only 1/5 shipped real code.**
+Coordination ~98–124k tokens/run (mostly cache-read; ~0 for arm A).
+
+### Mechanism — why the fair driver false-converges
+
+The fair prompt fixed the *driver's* step-skipping, so the failure moved **one level down**
+(root-caused from the run logs + the produced artifact):
+1. The Architect is `write_paths`-restricted to `.md`, so — unable to write code — it **embeds
+   the full implementation as a code block in the design `.md`** (verified: the design was 163
+   lines including the complete `formatDuration` body).
+2. The Developer, given the driver's brief free-form instruction, reads the design, sees
+   complete code, and reports **"done — both files already present"** *without creating the
+   `.ts`*.
+3. The driver (neutral cwd, no verification) trusts it; the Reviewer "reviews" nonexistent
+   code and passes; the driver finishes. `impl=no`.
+
+**Arm A gets the identical design yet implements 5/5** — its Developer's *authored* stake
+prompt + a validated `{done,summary}` contract + the executor faithfully running the
+review→fix loop (Reviewer caught missing tests → Developer fixed → real files) **ground the
+agent** where the driver's loose coordination is fooled.
+
+### Head-to-head
+
+| | A — Operator (slang) | B — Driver (fair LLM) |
+|---|---|---|
+| converged (self-report) | 5/5 | 5/5 |
+| **real implementation** | **5/5** | **1/5** |
+| protocol fidelity | **guaranteed (by construction)** | ran 5/5, but **hollow** (reviewing no code) |
+| coordination LLM tokens / run | **0** | ~98–124k |
+| false-convergence possible | **no** | yes (naive 3/3, fair 4/5) |
+
+### Conclusions
+
+- **Coordination cost** — the clean, guaranteed delta: **0 vs ~100k tokens/run**, pure
+  overhead on top of identical agent work.
+- **Reliability** — the headline: same agents, same task, the operator ships **5/5** vs the
+  LLM coordinator **1/5**, because **enforced output contracts + a deterministic loop** catch
+  agent hallucination that free-form coordination can't.
+- **Protocol fidelity** — a *guarantee* for the operator (static structure), a *per-run
+  variable* for the LLM (naive: skips steps; fair: runs them but hollow).
+
+**Honest caveats.** One feature, one model, 5 runs/arm — read as **directional**, not exact
+rates. The failure is amplified by the `.md`-only Architect embedding code; a sharper driver
+(verification tools, stricter per-agent instructions) would narrow the gap — but that means
+**re-implementing the executor's contracts + validation**. That *is* the thesis: slang gives
+that floor **for free and provably**, and the gap **widens with coordination complexity**
+(more agents, loops, longer context) — the regime the product targets. Harnesses:
+`convergence-rate.sh` (A), `driver.ts` + `driver-rate.sh` (B); raw data in `/tmp/slang/diag/`.
