@@ -118,13 +118,12 @@ pnpm dev        # starts the stdio server; logs to stderr
 ## 4. Pre-push gate (blocks pushes on failing tests)
 
 A husky `pre-push` hook runs **type-check + the full test suite** and **blocks the push on any
-failure** — mirroring `extensions/shofer-router`. It lives at [`.husky/pre-push`](.husky/pre-push)
-and runs `pnpm typecheck && pnpm test` in `server/`.
+failure**. It lives at [`.husky/pre-push`](.husky/pre-push) and runs `pnpm typecheck && pnpm test`
+in `server/`.
 
 **Activation.** The hook installs itself via the root [`package.json`](package.json) `prepare`
-script, but **only when this folder is its own git repo** (the standalone
-`shofer-dev/claude-code-slang-orchestrator` publish). Inside this monorepo there is no `.git`
-here, so `prepare` skips husky and the shared monorepo hooks are never touched.
+script, but **only when this folder is its own git repo** (the standalone publish). In a nested
+checkout with no `.git` here, `prepare` skips husky and no outer hooks are touched.
 
 - **Standalone repo:** `pnpm install` at the plugin root installs husky and wires the hook;
   every `git push` then gates on the suite.

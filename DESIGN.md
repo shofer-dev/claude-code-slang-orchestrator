@@ -1,21 +1,19 @@
 # Slang Workflows as a Claude Code MCP Server
 
-Design for porting Shofer's **Workflow** abstraction — the deterministic, `.slang`-driven,
-non-LLM executor — into **Claude Code** (Anthropic's CLI/SDK agent) as a **stateful MCP
-server** that uses the **Agent SDK** internally for agent dispatch.
+Design for a standalone **Claude Code** (Anthropic's CLI/SDK agent) plugin that vendors the
+upstream slang **Workflow** abstraction — the deterministic, `.slang`-driven, non-LLM
+executor — and exposes it as a **stateful MCP server** that uses the **Agent SDK** internally
+for agent dispatch.
 
-This is a feasibility-and-design doc, not a Shofer-internal change. The reference
-implementation lives in [`extensions/shofer/src/core/workflow/`](../../extensions/shofer/src/core/workflow/WorkflowTask.ts)
-and its architecture in [`workflow_design.md`](../../extensions/shofer/docs/workflow_design.md). The
-plugin's own language spec — a **fork** of Shofer's, with plugin extensions — is
-[`slang_specs.md`](slang_specs.md) in this folder.
+This is a feasibility-and-design doc for a standalone plugin. The upstream slang executor was
+originally built for a VS Code extension; here it is vendored and ported to Claude Code. The
+plugin's own language spec — a **fork** of the upstream slang spec, with plugin extensions —
+is [`slang_specs.md`](slang_specs.md) in this folder.
 
 > **Related**
 >
 > - Language spec: [`slang_specs.md`](slang_specs.md)
-> - Shofer architecture: [`workflow_design.md`](../../extensions/shofer/docs/workflow_design.md)
-> - Visualization (VS Code-specific, mostly dropped): [`workflow_visualization.md`](../../extensions/shofer/docs/workflow_visualization.md)
-> - Sibling design (same plugin pattern, different feature): [`live-memory/DESIGN.md`](../live-memory/DESIGN.md)
+> - Sibling design (same plugin pattern, different feature): the sibling live-memory plugin design
 > - Claude Code subagents: https://docs.claude.com/en/docs/claude-code/sub-agents
 > - Agent SDK: https://docs.claude.com/en/docs/claude-code/sdk/sdk-headless
 
@@ -24,7 +22,7 @@ plugin's own language spec — a **fork** of Shofer's, with plugin extensions �
 ## Implementation Status
 
 > A working implementation lives in [`server/`](server) — a **standalone Claude Code plugin**
-> (no Shofer dependency; the slang VM is vendored). Verified with a mock-based unit suite **and**
+> (no upstream dependency; the slang VM is vendored). Verified with a mock-based unit suite **and**
 > real Agent SDK model calls. Install/usage: [`README.md`](README.md).
 
 | Capability | Status | Verified by |
@@ -54,7 +52,7 @@ plugin's own language spec — a **fork** of Shofer's, with plugin extensions �
   `get_topology` / `get_trace` (the executor exposes its live `FlowState` via an `onStart` hook).
   Interactive `@Human` escalation works in **synchronous** runs only, because MCP elicitation
   must happen within the open `run_workflow` call.
-- **The slang stack is a vendored fork** under `server/src/slang/`, scrubbed of Shofer
+- **The slang stack is a vendored fork** under `server/src/slang/`, scrubbed of upstream
   references and extended with the `where` clause.
 
 **Not yet implemented:** parallel stake dispatch, a push/subscription event API
@@ -70,7 +68,7 @@ sequence/trace view — formerly `get_sequence` — now ship as `background:true
 2. [The Central Invariant: Operator Mode](#the-central-invariant-operator-mode)
 3. [Why an MCP Server + Agent SDK](#why-an-mcp-server--agent-sdk)
 4. [Architecture](#architecture)
-5. [Component Mapping: Shofer → MCP Server](#component-mapping-shofer--mcp-server)
+5. [Component Mapping: Upstream → MCP Server](#component-mapping-upstream--mcp-server)
 6. [MCP Tool Surface](#mcp-tool-surface)
 7. [Long-Running Execution & MCP Timeouts](#long-running-execution--mcp-timeouts)
 8. [Escalate @Human → Pause/Resume](#escalate-human--pauseresume)
@@ -79,7 +77,7 @@ sequence/trace view — formerly `get_sequence` — now ship as `background:true
 11. [Two-Layer Context Discipline](#two-layer-context-discipline)
 12. [Output Contract Enforcement](#output-contract-enforcement)
 13. [Language Choice](#language-choice)
-14. [What Changes vs. the Shofer Design](#what-changes-vs-the-shofer-design)
+14. [What Changes vs. the Upstream Design](#what-changes-vs-the-upstream-design)
 15. [Implementation Phases](#implementation-phases)
 16. [Open Questions](#open-questions)
 17. [References](#references)
@@ -88,15 +86,15 @@ sequence/trace view — formerly `get_sequence` — now ship as `background:true
 
 ## Motivation
 
-Shofer's Workflow abstraction ([`workflow_design.md`](../../extensions/shofer/docs/workflow_design.md))
-solves a real problem: LLM-driven orchestration (Shofer's Orchestrator mode) is
-non-deterministic — the LLM may skip steps, forget the review loop, or terminate early.
-The **Workflow** introduces a **formal, non-LLM-driven executor** ([`WorkflowTask.slangLoop()`](../../extensions/shofer/src/core/workflow/WorkflowTask.ts))
-that reads a `.slang` specification and dispatches agents as Shofer background Tasks.
-The executor is a deterministic state machine — it makes **zero LLM calls itself**.
+The upstream slang Workflow abstraction solves a real problem: LLM-driven orchestration
+(upstream LLM-driven orchestration) is non-deterministic — the LLM may skip steps, forget the
+review loop, or terminate early. The **Workflow** introduces a **formal, non-LLM-driven
+executor** (`WorkflowTask.slangLoop()`) that reads a `.slang` specification and dispatches
+agents as upstream background Tasks. The executor is a deterministic state machine — it makes
+**zero LLM calls itself**.
 
 We want this capability available inside **Claude Code**, so the same provable,
-deterministic multi-agent workflows run there — not just inside the Shofer VS Code
+deterministic multi-agent workflows run there — not just inside the upstream VS Code
 extension. The design question: *which Claude Code surface can host a non-LLM-driven
 executor while keeping the user in the familiar CLI?*
 
@@ -110,7 +108,7 @@ preserves what `.slang` is for**, and this doc assumes it throughout:
 | Mode | Who runs the coordination logic? | Deterministic? | Verdict |
 |------|----------------------------------|----------------|---------|
 | **Operator** ✅ | The MCP server's slang interpreter. The top-level Claude agent only *triggers* (`run`/`step`) and *observes* (`get_state`/`get_topology`). | ✅ Yes — the VM is a pure state machine | **This is `.slang`** |
-| **Driver** ❌ | The top-level Claude agent calls fine-grained primitives (`dispatch_agent`, `route_mailbox`, `eval_converge`) and decides the order itself. | ❌ No — an LLM is back in the coordination seat | Just Shofer's Orchestrator mode with extra steps |
+| **Driver** ❌ | The top-level Claude agent calls fine-grained primitives (`dispatch_agent`, `route_mailbox`, `eval_converge`) and decides the order itself. | ❌ No — an LLM is back in the coordination seat | Just upstream LLM-driven orchestration with extra steps |
 
 > **Invariant:** *The slang interpreter runs inside the MCP server and makes zero LLM
 > calls of its own. The top-level Claude session never makes a coordination decision.*
@@ -137,9 +135,9 @@ slang agent becomes an SDK session, and each `stake` becomes a `query()` call.
 
 ### Why not a pure Agent SDK app (no MCP)?
 
-A standalone SDK program works ([the executor ports cleanly](#component-mapping-shofer--mcp-server)),
+A standalone SDK program works ([the executor ports cleanly](#component-mapping-upstream--mcp-server)),
 but the user leaves the Claude Code CLI — the "UI" is stdout or a separate web dashboard,
-and Shofer's integrated visualization does not carry over. Wrapping the executor in an
+and the upstream integrated visualization does not carry over. Wrapping the executor in an
 MCP server means:
 
 - **The user stays in the CLI.** The top-level Claude agent runs/observes workflows via
@@ -170,7 +168,7 @@ non-determinism `.slang` was designed to eliminate. Reject.
                              ▼
 ┌─ slang-mcp-server (long-running process) ────────────────────┐
 │                                                               │
-│  Deterministic executor (ported from Shofer, verbatim):       │
+│  Deterministic executor (ported from upstream, verbatim):     │
 │   slang-lexer / slang-parser-upstream / slang-resolver        │
 │   slang-interpreter (advanceAgent, routeOutput, evalExpr)     │
 │   FlowState + mailbox + converge/budget                       │
@@ -194,32 +192,32 @@ The slang stack is framework-agnostic TypeScript. The interpreter's own header s
 the portability contract explicitly:
 
 > *"Every function in this module takes all state as explicit parameters and has zero
-> dependencies on ShoferProvider, Task, TaskManager, or any VS Code API. This makes the
+> dependencies on the host provider, Task, TaskManager, or any VS Code API. This makes the
 > core VM (advanceAgent, evalExpr, mailbox routing, convergence) unit-testable with
 > plain data fixtures."*
-> — [`slang-interpreter.ts`](../../extensions/shofer/src/core/workflow/slang-interpreter.ts)
+> — `slang-interpreter.ts`
 
-Only the **dispatch layer** changes: Shofer `Task`/`new_task`/`wait_for_task` →
+Only the **dispatch layer** changes: the upstream `Task`/`new_task`/`wait_for_task` →
 SDK `query()`/`resume`. The parser, resolver, interpreter, and runtime types are vendored as a
-**near-verbatim fork** in this folder — identical to Shofer's except for a small set of
+**near-verbatim fork** in this folder — identical to the upstream implementation except for a small set of
 clearly-marked plugin extensions (currently the output-contract [`where` clause](#output-contract-enforcement)).
 
 ---
 
-## Component Mapping: Shofer → MCP Server
+## Component Mapping: Upstream → MCP Server
 
-| Shofer module | MCP server equivalent | Port effort |
+| Upstream module | MCP server equivalent | Port effort |
 |---------------|----------------------|-------------|
-| [`slang-lexer.ts`](../../extensions/shofer/src/core/workflow/slang-lexer.ts) | `server/slang/lexer.ts` | **Verbatim** — vendored, no deps |
-| [`slang-parser-upstream.ts`](../../extensions/shofer/src/core/workflow/slang-parser-upstream.ts) | `server/slang/parser.ts` | **Verbatim** |
-| [`slang-parser.ts`](../../extensions/shofer/src/core/workflow/slang-parser.ts) | `server/slang/index.ts` | **Verbatim** — public API (`parseSlang`, `validateSlangAST`) |
-| [`slang-resolver.ts`](../../extensions/shofer/src/core/workflow/slang-resolver.ts) | `server/slang/resolver.ts` | **Verbatim** — dep graph, deadlock detection |
-| [`slang-interpreter.ts`](../../extensions/shofer/src/core/workflow/slang-interpreter.ts) | `server/slang/interpreter.ts` | **Verbatim** — pure VM |
-| [`slang-types.ts`](../../extensions/shofer/src/core/workflow/slang-types.ts) | `server/slang/types.ts` | **Verbatim** — `FlowState`, `AgentState`, `MailboxEntry`, (de)serializers |
-| [`slang-ast.ts`](../../extensions/shofer/src/core/workflow/slang-ast.ts) | `server/slang/ast.ts` | **Verbatim** — AST type definitions |
-| [`WorkflowTask.ts`](../../extensions/shofer/src/core/workflow/WorkflowTask.ts) | `server/executor.ts` | **Rewrite dispatch layer** — `slangLoop` structure stays; `spawnAgentTask`/`wait_for_task` → SDK `query()`/`resume`. VS Code-specific viz methods dropped. |
-| [`wait-for-task-helper.ts`](../../extensions/shofer/src/core/workflow/wait-for-task-helper.ts) | (absorbed into `executor.ts`) | Simplified — SDK `query()` is already an awaitable generator |
-| Shofer `Task` (per agent) | SDK session (`session_id`) | One agent = one session for its lifetime (see below) |
+| `slang-lexer.ts` | `server/slang/lexer.ts` | **Verbatim** — vendored, no deps |
+| `slang-parser-upstream.ts` | `server/slang/parser.ts` | **Verbatim** |
+| `slang-parser.ts` | `server/slang/index.ts` | **Verbatim** — public API (`parseSlang`, `validateSlangAST`) |
+| `slang-resolver.ts` | `server/slang/resolver.ts` | **Verbatim** — dep graph, deadlock detection |
+| `slang-interpreter.ts` | `server/slang/interpreter.ts` | **Verbatim** — pure VM |
+| `slang-types.ts` | `server/slang/types.ts` | **Verbatim** — `FlowState`, `AgentState`, `MailboxEntry`, (de)serializers |
+| `slang-ast.ts` | `server/slang/ast.ts` | **Verbatim** — AST type definitions |
+| `WorkflowTask.ts` | `server/executor.ts` | **Rewrite dispatch layer** — `slangLoop` structure stays; `spawnAgentTask`/`wait_for_task` → SDK `query()`/`resume`. VS Code-specific viz methods dropped. |
+| `wait-for-task-helper.ts` | (absorbed into `executor.ts`) | Simplified — SDK `query()` is already an awaitable generator |
+| The upstream `Task` (per agent) | SDK session (`session_id`) | One agent = one session for its lifetime (see below) |
 | `messageQueueService.addMessage()` (resume) | `query(prompt, options={resume: session_id})` | Resume the same session with full history |
 | `attempt_completion` result | `submit_result` tool-call args (preferred) or `ResultMessage.result` | Strict-tool args give a hard structural guarantee; see [§ Output Contract Enforcement](#output-contract-enforcement) |
 | `HistoryItem` (`slangSource`, `flowState`) | Sidecar `flowState.json` per workflow | Disk checkpoint per round |
@@ -233,7 +231,7 @@ and it must retain conversation history (the Developer remembers round-1 work wh
 addressing round-2 review feedback). This maps to **one SDK session per agent for its
 entire lifetime**, resumed across stakes:
 
-| Shofer (today) | MCP server (Agent SDK) |
+| Upstream (today) | MCP server (Agent SDK) |
 |----------------|------------------------|
 | One slang agent = **one `Task` instance** | One slang agent = **one `session_id`** |
 | Stake = `messageQueueService.addMessage(prompt)` → wait for `attempt_completion` | Stake = `query(prompt, resume=session_id)` → wait for `ResultMessage` |
@@ -241,9 +239,9 @@ entire lifetime**, resumed across stakes:
 | Resume = wake dormant Task via queue | Resume = `query(..., resume=session_id)` |
 | History accumulates (same Task) | History accumulates (same session) |
 
-Functionally identical. The only difference is the storage medium: Shofer keeps the Task
+Functionally identical. The only difference is the storage medium: the upstream implementation keeps the Task
 object in memory; the SDK keeps the session on disk. The disk-backed version is *more*
-durable (survives crashes/restarts) — Shofer already checkpoints `FlowState` to
+durable (survives crashes/restarts) — the upstream implementation already checkpoints `FlowState` to
 `HistoryItem` for the same reason.
 
 ```typescript
@@ -291,7 +289,7 @@ async function runStake(agentName: string, prompt: string): Promise<string> {
 
 The server exposes a control/observation surface. All tools take a `workflow_id`; the
 server keys workflow state by `cwd` for multi-workspace isolation (same pattern as the
-[sibling live-memory design](../live-memory/DESIGN.md)).
+sibling live-memory plugin design).
 
 ### Control
 
@@ -320,17 +318,16 @@ server keys workflow state by `cwd` for multi-workspace isolation (same pattern 
 ## Long-Running Execution & MCP Timeouts
 
 A workflow run can take many minutes. A blocking MCP tool call that runs to completion is
-impractical — Shofer's own MCP default is a 60s per-call timeout
-([`mcp.md`](../../extensions/shofer/docs/mcp.md)). The pattern:
+impractical — the upstream MCP default is a 60s per-call timeout. The pattern:
 
 1. `run_workflow` **starts** the slang loop as a background task inside the server process
    and returns immediately with a `workflow_id` + initial `FlowState`.
 2. The slang loop runs **independently** (the server is a long-lived process that owns it),
-   checkpointing `FlowState` to disk each round (same as Shofer's `persistCheckpoint()`).
+   checkpointing `FlowState` to disk each round (same as the upstream `persistCheckpoint()`).
 3. The top-level agent observes via `get_workflow_state` / `get_workflow_events`, or the
    server pushes round events via **MCP notifications** (server→client).
 
-This mirrors exactly how Shofer's `WorkflowTask` runs its loop independently of the VS Code
+This mirrors exactly how the upstream `WorkflowTask` runs its loop independently of the VS Code
 UI. The MCP server is the long-running process; the tools are the observation/control
 surface.
 
@@ -358,11 +355,11 @@ loop reaches an `escalate @Human` operation:
    agent's mailbox.
 
 The top-level Claude agent *becomes* the human-interaction surface for escalations — the
-role Shofer's `WorkflowView` played. No special UI needed.
+role the upstream `WorkflowView` played. No special UI needed.
 
 > **Agent-initiated `ask_followup_question`** (e.g., the Developer needs clarification
-> mid-stake) is the dynamic analogue. In Shofer this routes to the parent executor via
-> [`relayChildQuestion`](../../extensions/shofer/docs/workflow_design.md). The inner SDK session
+> mid-stake) is the dynamic analogue. Upstream this routes to the parent executor via
+> `relayChildQuestion`. The inner SDK session
 > runs autonomously and cannot pop its own interactive prompt, so the question must cross
 > back to the human. Three options, in increasing fidelity:
 >
@@ -373,7 +370,7 @@ role Shofer's `WorkflowView` played. No special UI needed.
 >   `resume` with the answer. Durable (checkpointed), but loses mid-turn context and relies
 >   on brittle result-shape sniffing.
 > - **(c) A real `ask_human` tool that crosses the boundary (recommended target).** Give the
->   inner agent an in-process SDK tool — `ask_human`, **replacing** the Shofer
+>   inner agent an in-process SDK tool — `ask_human`, **replacing** the upstream
 >   `ask_followup_question` — whose handler **blocks** until a human answers, parking the
 >   inner `query()` mid-turn with full context intact. The question is surfaced to the user
 >   via **MCP elicitation**, which Claude Code supports natively (verified): the server
@@ -416,13 +413,13 @@ correct at spawn time:
 
 | `.slang` agent meta | SDK option | Notes |
 |---------------------|------------|-------|
-| `mode: "code"` | (provides identity; maps to a system prompt + tool set) | Shofer modes don't exist in Claude Code — map to a Claude Code subagent definition or an inline `AgentDefinition`. |
+| `mode: "code"` | (provides identity; maps to a system prompt + tool set) | The upstream modes don't exist in Claude Code — map to a Claude Code subagent definition or an inline `AgentDefinition`. |
 | `tools: [write, execute, read]` | `allowed_tools` / `disallowedTools` | Map the 9 ToolGroup names to Claude Code tool names (`Read`, `Edit`, `Write`, `Bash`, `Glob`, `Grep`, `WebSearch`, …). Restriction-only semantics carry over. |
 | `api_configuration: "sonnet"` | `model` (`sonnet`/`opus`/`haiku`/full ID) | Per-agent model selection. |
 | `role: "…"` | `AgentDefinition.prompt` | Layered onto the base system prompt. |
 | (write/execute agents) | `permission_mode: "acceptEdits"` or scoped `bypassPermissions` | Inner agents are autonomous — set this explicitly and scope by workspace. |
 
-> **This is the one place the model differs meaningfully from Shofer.** Shofer's agent
+> **This is the one place the model differs meaningfully from upstream.** The upstream agent
 > Tasks share the extension's interactive approval flow; SDK inner sessions are
 > fire-and-forget. Set permissions explicitly, scope by workspace, and the slang
 > `tools:`/`context` declarations are precisely the mechanism for this.
@@ -465,17 +462,17 @@ sandboxing possible. The MCP server (parent) stays unsandboxed — it must write
 ## Visualization via Mermaid
 
 Claude Code renders Markdown, including Mermaid, inline in the terminal/UI. This recovers
-most of Shofer's visualization value with **no webview**:
+most of the upstream visualization value with **no webview**:
 
-| Shofer view | MCP server equivalent | Effort |
+| Upstream view | MCP server equivalent | Effort |
 |-------------|----------------------|--------|
-| Topology (current-round graph) | `get_topology` → Mermaid `flowchart` (nodes + live `sendingTo`/`waitingFor` edges) | Low — port [`topologyToMermaid()`](../../extensions/shofer/src/core/workflow/slang-types.ts) logic |
+| Topology (current-round graph) | `get_topology` → Mermaid `flowchart` (nodes + live `sendingTo`/`waitingFor` edges) | Low — port `topologyToMermaid()` logic |
 | Sequence (message chronology) | `get_sequence` → Mermaid `sequenceDiagram` from `mailboxHistory` | Low — data already enriched with tokens/cost/duration |
 | Swimlane (per-agent control flow) | (no clean Mermaid equivalent) | Deferred — would need a web dashboard if wanted |
 | Runtime overlays (active-edge pulse, opIndex marker) | Mermaid node styling + status labels | Partial — Mermaid can color nodes by status; animations are lost |
 
 The topology and sequence diagrams are the highest-value views, and both port to Mermaid
-cheaply. The custom SVG swimlane ([`slang-render.js`](../../extensions/shofer/src/core/webview/slang-render.js))
+cheaply. The custom SVG swimlane (`slang-render.js`)
 does not translate to Mermaid cleanly — if swimlanes/runtime overlays are needed later,
 that is where a small web dashboard would go, but it is not needed on day one.
 
@@ -494,14 +491,14 @@ Keep Layer A lean. `get_agent_transcript` exists for deep inspection but should 
 called routinely — it would flood the top-level context. To make flooding hard *by
 construction*, the tool takes a **mandatory `tail` parameter** (return only the N most recent
 messages); there is deliberately no "fetch the whole transcript" form. This is identical to
-Shofer's rule that the executor only reads `attempt_completion` results, never task internals
-([`workflow_design.md` § Executor↔Task Communication](../../extensions/shofer/docs/workflow_design.md)).
+the upstream rule that the executor only reads `attempt_completion` results, never task internals
+(the upstream workflow design § Executor↔Task Communication).
 
 ---
 
 ## Output Contract Enforcement
 
-Shofer's `.slang` output contracts (a stake's `attempt_completion` must match a declared
+The upstream `.slang` output contracts (a stake's `attempt_completion` must match a declared
 schema) carry over — but the enforcement mechanism is **different on the SDK path**, and is
 best modeled as **two independent layers**, because Claude Code exposes two distinct
 features that guarantee different things. The design uses **both**.
@@ -573,9 +570,9 @@ exactly like a structural failure (below). Pure expressions only — **no I/O**.
 > **The slang stack is vendored as a fork — `where` lives in the plugin, not upstream.** The
 > plugin keeps its **own** copy of the slang spec and stack in this folder
 > ([`slang_specs.md`](slang_specs.md) § Semantic Assertions). The vendored lexer/parser/
-> interpreter start identical to Shofer's and diverge only for clearly-marked extensions like
-> `where`, so Shofer's shared spec stays untouched. Trade-off: the fork can drift from upstream
-> Shofer slang — keep extensions few, marked `(* slang-orchestrator extension *)`, and reconcile
+> interpreter start identical to the upstream implementation and diverge only for clearly-marked extensions like
+> `where`, so the upstream shared spec stays untouched. Trade-off: the fork can drift from upstream
+> slang — keep extensions few, marked `(* slang-orchestrator extension *)`, and reconcile
 > periodically.
 
 **Escape hatch — host predicates.** Invariants that need I/O ("the cited file exists", "the URL
@@ -584,7 +581,7 @@ the executor keyed by agent/contract. Not declarative; use only where `where` ca
 
 On failure (a false `where` **or** a failed host predicate), the executor **resumes the same
 agent session** (`query(prompt, resume=session_id)`) with the *specific* violation as feedback,
-bounded by `MAX_RETRIES` — Shofer increments `retryCount`, re-prompts, and leaves `opIndex` on
+bounded by `MAX_RETRIES` — upstream increments `retryCount`, re-prompts, and leaves `opIndex` on
 the same stake, the exact path a structural failure already takes. Because Layer 1 guaranteed
 shape, Layer 2 only ever sees well-formed objects and asserts *meaning*.
 
@@ -611,9 +608,8 @@ shape, Layer 2 only ever sees well-formed objects and asserts *meaning*.
 Both layers are supported on Opus 4.8 / 4.7 / 4.6 / 4.5, Sonnet 4.6 / 4.5, Haiku 4.5, and
 Mythos / Fable 5.
 
-> **Note:** This supersedes the earlier framing (and the stale tier table in
-> [`output_contract_enforcement.md`](../../extensions/shofer/docs/output_contract_enforcement.md)
-> §4.2) that classified Claude as "semantic-only, no hard tier." Anthropic has since shipped
+> **Note:** This supersedes the earlier framing (and the stale tier table in the upstream
+> output contract enforcement doc §4.2) that classified Claude as "semantic-only, no hard tier." Anthropic has since shipped
 > constrained-decode Structured Outputs; on the Agent SDK path the hard tier is reachable via
 > a `strict: true` tool, as above.
 
@@ -623,17 +619,16 @@ Mythos / Fable 5.
 
 **TypeScript (recommended).** The slang stack is TypeScript and framework-agnostic. A TS
 MCP server (using `@modelcontextprotocol/sdk` + `@anthropic-ai/claude-agent-sdk`) reuses
-the parser/resolver/interpreter **verbatim** — no translation pass. The existing
-[`mcp-server/`](../../mcp-server/DESIGN.md) in this repo is Go, but for *this* server the
-slang-reuse argument dominates.
+the parser/resolver/interpreter **verbatim** — no translation pass. A sibling Go MCP server
+exists, but for *this* server the slang-reuse argument dominates.
 
-The Go-vs-TS tradeoff is the same one noted in the [sibling live-memory design](../live-memory/DESIGN.md);
+The Go-vs-TS tradeoff is the same one noted in the sibling live-memory plugin design;
 here TS wins decisively because the code being ported is TS and the interpreter is
 explicitly dependency-free.
 
 ---
 
-## What Changes vs. the Shofer Design
+## What Changes vs. the Upstream Design
 
 ### Preserved (the core value)
 
@@ -650,17 +645,17 @@ explicitly dependency-free.
 - **Mailbox routing** (`stake -> @B`) — executor-mediated; all results flow through the
   loop and are injected into the next prompt.
 - **Converge / budget** — the loop evaluates conditions between rounds (same logic as
-  [`slang-interpreter.ts`](../../extensions/shofer/src/core/workflow/slang-interpreter.ts)).
+  `slang-interpreter.ts`).
 - **FlowState checkpointing** — disk sidecar per round; survives restarts.
 - **Parser/resolver static analysis** — deadlock detection, orphan-output warnings, etc.
 
 ### Changed
 
-- **Dispatch primitive:** Shofer `Task`/`new_task`/`wait_for_task` → SDK
+- **Dispatch primitive:** the upstream `Task`/`new_task`/`wait_for_task` → SDK
   `query()`/`resume`.
-- **Agent identity:** Shofer modes → Claude Code subagent definitions / inline
+- **Agent identity:** the upstream modes → Claude Code subagent definitions / inline
   `AgentDefinition` (system prompt, tools, model).
-- **Permissions:** Shofer's interactive approval flow → explicit SDK `permission_mode` +
+- **Permissions:** the upstream interactive approval flow → explicit SDK `permission_mode` +
   `allowed_tools` set at spawn time (autonomous inner sessions).
 - **`escalate @Human`:** synchronous WorkflowView prompt → pause + `respond_to_escalation`
   tool (top-level agent asks the user).
@@ -670,10 +665,10 @@ explicitly dependency-free.
 
 ### Dropped
 
-- **Integrated VS Code visualization** — the [`.slang` custom editor](../../extensions/shofer/docs/workflow_visualization.md),
+- **Integrated VS Code visualization** — the `.slang` custom editor,
   topology/sequence/swimlane SVGs, runtime overlays, `WorkflowView` iframe. Replaced by
   Mermaid-in-CLI (topology + sequence) for most value.
-- **VS Code host integration** — `ShoferProvider`, `webviewMessageHandler`, `TaskSelector`,
+- **VS Code host integration** — the upstream host provider, `webviewMessageHandler`, `TaskSelector`,
   `TaskTreeView`, typed `commandIds`. Replaced by the MCP tool surface.
 - **Interactive inner-agent approval** — inner SDK sessions are autonomous.
 
@@ -687,15 +682,13 @@ Stand up the TS MCP server with the vendored slang stack (verbatim). Implement
 agents via a single SDK `query()` (no resume yet). Implement the output-contract terminus
 here: a `strict: true` `submit_result` tool (Layer 1) plus the executor's semantic validator
 with resume-retry (Layer 2) — see [§ Output Contract Enforcement](#output-contract-enforcement).
-Validate against
-[`test-output-contract.slang`](../../.shofer/workflows/test-output-contract.slang) (single
+Validate against `test-output-contract.slang` (single
 agent, one stake, output contract).
 
 ### Phase 2 — Session resume + multi-agent
 Add agent-as-session (`resume=session_id`) so agents persist across stakes. Implement
 parallel stake dispatch (`asyncio`/`Promise.all` equivalent), mailbox routing, and
-`converge`/`budget`. Validate against
-[`test-slang-basics.slang`](../../.shofer/workflows/test-slang-basics.slang) (multi-agent,
+`converge`/`budget`. Validate against `test-slang-basics.slang` (multi-agent,
 stake routing, await, repeat-until, when/otherwise).
 
 ### Phase 3 — Escalate + step + abort
@@ -722,37 +715,36 @@ Per-workspace state keying by `cwd`. Telemetry/error logging.
 1. **Server lifecycle / hosting** — Run as a `stdio` child process (Claude Code spawns it
    per session) or a long-running `http` server (one process, many clients, survives
    session restarts)? `stdio` is simpler but loses in-memory workflow state across
-   sessions (must restore from disk every time). `http` matches the
-   [`mcp-server/`](../../mcp-server/DESIGN.md) sidecar pattern and keeps long-running
+   sessions (must restore from disk every time). `http` matches the sibling Go MCP server
+   sidecar pattern and keeps long-running
    workflows alive across Claude Code restarts. **Lean `http`** for long-running
    workflows; `stdio` only if workflows are always short.
-2. **Mode mapping** — Shofer modes (`code`, `architect`, `reviewer`, `search`, `browser`)
+2. **Mode mapping** — the upstream modes (`code`, `architect`, `reviewer`, `search`, `browser`)
    don't exist in Claude Code. Map each to a Claude Code subagent definition (system
    prompt + tool allowlist + model), shipped as plugin `agents/*.md` files. Decide whether
    to ship a fixed mode→subagent map or let `.slang` reference arbitrary subagent names.
 3. **Agent-initiated questions** — Inner SDK sessions can't surface interactive prompts.
    Start with "agents encode assumptions in their result" (Phase 1–3); revisit
    question-pause if real workflows need it (see [§ Escalate](#escalate-human--pauseresume)).
-4. **Peer messaging (`peers:`)** — Shofer's direct-message plane (`send_message_to_task`)
+4. **Peer messaging (`peers:`)** — the upstream direct-message plane (`send_message_to_task`)
    is executor-mediated anyway. In the MCP server, route peer messages through the loop
    (inject into the recipient's next prompt). Decide whether to expose a
    `send_peer_message` tool or keep it fully executor-internal.
 5. **LLM key brokering** — The server makes outbound LLM calls (via the SDK). Decide
-   whether the key is per-user (env var) or brokered through
-   [`llm-router/`](../../llm-router/DESIGN.md) (consistent with the rest of the platform).
+   whether the key is per-user (env var) or brokered through a platform LLM router
+   (consistent with the rest of the platform).
 
 ---
 
 ## References
 
-- Shofer workflow architecture: [`workflow_design.md`](../../extensions/shofer/docs/workflow_design.md)
+- The upstream workflow architecture
 - Slang language spec: [`slang_specs.md`](slang_specs.md)
-- Shofer visualization (VS Code-specific): [`workflow_visualization.md`](../../extensions/shofer/docs/workflow_visualization.md)
-- Shofer implementation: [`extensions/shofer/src/core/workflow/`](../../extensions/shofer/src/core/workflow/WorkflowTask.ts)
-- Example workflows: [`.shofer/workflows/`](../../.shofer/workflows/) —
-  `test-slang-basics.slang`, `test-output-contract.slang`, `input-widgets-demo.slang`
-- Sibling plugin design (same MCP-server-in-plugin pattern): [`live-memory/DESIGN.md`](../live-memory/DESIGN.md)
-- Existing MCP server scaffold (HTTP + SSE, Go): [`mcp-server/DESIGN.md`](../../mcp-server/DESIGN.md)
+- The upstream visualization (VS Code-specific)
+- The upstream slang executor implementation
+- Example workflows — `test-slang-basics.slang`, `test-output-contract.slang`, `input-widgets-demo.slang`
+- Sibling plugin design (same MCP-server-in-plugin pattern): the sibling live-memory plugin design
+- Existing MCP server scaffold (HTTP + SSE, Go): a sibling Go MCP server
 - Claude Code subagents: https://docs.claude.com/en/docs/claude-code/sub-agents
 - Agent SDK: https://docs.claude.com/en/docs/claude-code/sdk/sdk-headless
 - Claude Code plugins: https://docs.claude.com/en/docs/claude-code/plugins

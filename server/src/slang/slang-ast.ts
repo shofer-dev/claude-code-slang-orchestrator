@@ -118,7 +118,7 @@ export interface AgentMeta {
 	 * `disallowedTools`; deny wins over the `tools:` allow-list. */
 	deny?: string[]
 	/** Slang `mode: "slug"` — agent identity hint. Stored; the port maps it to tool sets /
-	 * system prompt rather than enforcing shofer-specific mode behavior. */
+	 * system prompt rather than enforcing mode-specific write/tool behavior. */
 	mode?: string
 	/** Slang `write_paths: ["glob", ...]` — restrict this agent's Write/Edit to paths
 	 * matching these globs (others denied via the SDK's canUseTool). Note: gates Write/Edit

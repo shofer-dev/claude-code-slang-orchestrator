@@ -24,8 +24,8 @@ flow "implement-feature" (feature: "string", design_path: "string") {
   agent Architect {
     mode: "architect"
     -- Coordinator tool scope. `read` (explore for the design) + `write` (author the
-    -- .md design) + `questions` (clarify). Under the claude-code port, shofer's
-    -- "architect mode blocks non-.md writes" is NOT enforced — so we enforce it
+    -- .md design) + `questions` (clarify). Under the claude-code port, the upstream
+    -- "architect mode blocks non-.md writes" rule is NOT enforced — so we enforce it
     -- explicitly: `write_paths` scopes Write/Edit to .md only (the Architect can
     -- author the design but physically cannot write code), and `deny: [Bash]` closes
     -- the shell-write escape. Together these force delegation to the Developer/Reviewer
