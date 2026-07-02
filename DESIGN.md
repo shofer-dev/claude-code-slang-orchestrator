@@ -1,17 +1,18 @@
 # Slang Workflows as a Claude Code MCP Server
 
 Design for a standalone **Claude Code** (Anthropic's CLI/SDK agent) plugin that vendors the
-upstream slang **Workflow** abstraction — the deterministic, `.slang`-driven, non-LLM
-executor — and exposes it as a **stateful MCP server** that uses the **Agent SDK** internally
-for agent dispatch.
+slang **Workflow** abstraction from [**Shofer**](https://shofer.dev) — the deterministic,
+`.slang`-driven, non-LLM executor — and exposes it as a **stateful MCP server** that uses the
+**Agent SDK** internally for agent dispatch.
 
-This is a feasibility-and-design doc for a standalone plugin. The upstream slang executor was
-originally built for a VS Code extension; here it is vendored and ported to Claude Code. The
-plugin's own language spec — a **fork** of the upstream slang spec, with plugin extensions —
-is [`slang_specs.md`](slang_specs.md) in this folder.
+This is a feasibility-and-design doc for a standalone plugin. The slang executor was originally
+built for [**Shofer**](https://shofer.dev), the AI-agent VS Code extension; here it is vendored
+and ported to Claude Code. The plugin's own language spec — a **fork** of Shofer's slang spec,
+with plugin extensions — is [`slang_specs.md`](slang_specs.md) in this folder.
 
 > **Related**
 >
+> - Origin: [**Shofer**](https://shofer.dev) — the AI-agent VS Code extension the slang executor was first built for.
 > - Language spec: [`slang_specs.md`](slang_specs.md)
 > - Sibling design (same plugin pattern, different feature): the sibling live-memory plugin design
 > - Claude Code subagents: https://docs.claude.com/en/docs/claude-code/sub-agents
@@ -77,7 +78,7 @@ sequence/trace view — formerly `get_sequence` — now ship as `background:true
 11. [Two-Layer Context Discipline](#two-layer-context-discipline)
 12. [Output Contract Enforcement](#output-contract-enforcement)
 13. [Language Choice](#language-choice)
-14. [What Changes vs. the Upstream Design](#what-changes-vs-the-upstream-design)
+14. [What Changes vs. the Shofer Design](#what-changes-vs-the-shofer-design)
 15. [Implementation Phases](#implementation-phases)
 16. [Open Questions](#open-questions)
 17. [References](#references)
@@ -86,15 +87,15 @@ sequence/trace view — formerly `get_sequence` — now ship as `background:true
 
 ## Motivation
 
-The upstream slang Workflow abstraction solves a real problem: LLM-driven orchestration
-(upstream LLM-driven orchestration) is non-deterministic — the LLM may skip steps, forget the
+Shofer's slang Workflow abstraction solves a real problem: LLM-driven orchestration
+(Shofer's Orchestrator mode) is non-deterministic — the LLM may skip steps, forget the
 review loop, or terminate early. The **Workflow** introduces a **formal, non-LLM-driven
 executor** (`WorkflowTask.slangLoop()`) that reads a `.slang` specification and dispatches
-agents as upstream background Tasks. The executor is a deterministic state machine — it makes
+agents as background Tasks. The executor is a deterministic state machine — it makes
 **zero LLM calls itself**.
 
 We want this capability available inside **Claude Code**, so the same provable,
-deterministic multi-agent workflows run there — not just inside the upstream VS Code
+deterministic multi-agent workflows run there — not just inside Shofer's VS Code
 extension. The design question: *which Claude Code surface can host a non-LLM-driven
 executor while keeping the user in the familiar CLI?*
 
@@ -628,7 +629,7 @@ explicitly dependency-free.
 
 ---
 
-## What Changes vs. the Upstream Design
+## What Changes vs. the Shofer Design
 
 ### Preserved (the core value)
 

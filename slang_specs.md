@@ -1,8 +1,9 @@
 # Slang Language Specification (slang-orchestrator)
 
 > **Scope.** This is the slang language spec for the **slang-orchestrator** plugin — the base
-> spec for the Claude Code MCP server described in [`DESIGN.md`](DESIGN.md). It documents the
-> vendored parser, static resolver, and interpreter that ship under
+> spec for the Claude Code MCP server described in [`DESIGN.md`](DESIGN.md). It began as a fork of
+> the slang spec from [**Shofer**](https://shofer.dev) (the AI-agent VS Code extension) and
+> documents the vendored parser, static resolver, and interpreter that ship under
 > [`server/src/slang/`](server/src/slang/). It extends the base language only where marked
 > `(* slang-orchestrator extension *)`; plugin-specific additions (e.g. the output-contract `where`
 > clause) are documented **here**.

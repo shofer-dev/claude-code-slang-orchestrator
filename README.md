@@ -12,6 +12,10 @@ Claude Code's native **dynamic workflows** also codify orchestration (Claude wri
 slang's difference is that the structure is **enforced and statically analyzable**, and runs render
 as **Mermaid topology + trace diagrams**. See the [benchmark](benchmark/) for the A/B/C head-to-head.
 
+> **Origin.** The `.slang` Workflow engine was born in [**Shofer**](https://shofer.dev) — the
+> AI-agent VS Code extension — where the deterministic, non-LLM executor was first built. This
+> plugin brings it to Claude Code.
+
 > Design and rationale: [`DESIGN.md`](DESIGN.md). Language reference: [`slang_specs.md`](slang_specs.md).
 
 ## What works today
