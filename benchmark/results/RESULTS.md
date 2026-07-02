@@ -10,7 +10,7 @@ Worker→`{doubled:42}`, **converged** in 8.9s, contracts honored. The real
 
 ### ⚠️ The flagship `implement-feature.slang` does NOT run reliably (as-is)
 
-Run on a faithful shofer **master** worktree (feature: a `formatDuration` util).
+Run on a worktree of a large internal repo (feature: a `formatDuration` util).
 **Two real runs, two distinct failures — neither converged cleanly:**
 
 1. **Run 1 — livelock.** The full protocol executed and the *work succeeded*:
@@ -60,7 +60,7 @@ reviewer never approves. So the pre-fix failures were **not** executor coordinat
 loop** (the "skip review" failure mode) — deterministically reproduced.
 
 **Mode-enforcement gap (from the real diagnostic run):** the `architect` mode's write
-restriction (shofer: `.md`-only) is **not enforced** in the claude-code mapping — the
+restriction (upstream: `.md`-only) is **not enforced** in the claude-code mapping — the
 real Architect agent wrote `format-duration.ts` and *implemented the feature itself* during
 `create_design`, instead of delegating. The `write` tool-group maps to Claude Code's full
 Write/Edit. This corrupts the delegation premise (still converged once anyway, but it's a
@@ -83,13 +83,13 @@ Built to make `implement-feature` execute reliably (all tested, 48 pass):
 - **Stake time-budget** is communicated to the agent (soft deadline) alongside the abort.
 
 **Root cause of run 1 (diagnosed):** the real **Architect implements the feature itself**
-during `create_design`, because shofer's `architect` mode (`.md`-only write) is a no-op in
+during `create_design`, because the upstream `architect` mode (`.md`-only write) is a no-op in
 the port. The hardened workflow (`benchmark/workflows/implement-feature.slang`) blocks that.
 
 **`write_paths` enforcement — `canUseTool` vs command hook (resolved).** The first
 `write_paths` backing used the SDK's `canUseTool`. That needs the Agent-SDK **control
 protocol** (a bidirectional Node↔CLI channel for the JS callback), whose subprocess launch
-**deterministically fails when `cwd` is the full shofer worktree** — "native binary failed
+**deterministically fails when `cwd` is the full internal-repo worktree** — "native binary failed
 to launch (musl on glibc)", but the message is misleading: it's **cwd-dependent**, not
 libc. Isolation established (each tested alone, worktree cwd): bypass-mode stakes launch
 fine there; **any JS callback** — `canUseTool` *or* a JS hook — fails; minimal cwds (plain,
@@ -116,7 +116,7 @@ sub-agents." Now `create_design` returns cleanly on attempt 1.
 
 ### ✅ Converges end-to-end (the hardened workflow)
 
-A real run on a clean shofer worktree **converged in 9 rounds / 507s, 0 launch errors**:
+A real run on a clean internal-repo worktree **converged in 9 rounds / 507s, 0 launch errors**:
 `create_design` (Architect writes `.md` only) → escalation → `implement` (hand-off) →
 Developer writes `src/utils/formatDuration.ts` + vitest spec → review loop (Reviewer flags
 missing boundary tests → Developer fixes) → terminal → converged. **The Architect authored
@@ -149,7 +149,7 @@ anchor the two-arm benchmark.
 
 **Setup (identical task, verified).** `harness/convergence-rate.sh` (arm A) and
 `harness/driver-rate.sh` (arm B) run a **byte-identical** feature + `design_path`, the same
-`implement-feature.slang`, the same worktree (`/tmp/slang/shofer` @ `5429efcab`, reset clean
+`implement-feature.slang`, the same worktree (the internal target repo @ `5429efcab`, reset clean
 per run), the **same three agents** (arm B parses Architect/Developer/Reviewer from the same
 workflow → identical tools/role/`write_paths`), and the same model (`sonnet`). The single
 intended difference is **who coordinates**: the deterministic slang executor (A) vs an LLM
@@ -181,7 +181,7 @@ it's a methodology note (cf. live-memory's `--strict-mcp-config` confound), not 
 dependencies, and "trust ONLY the specialists' actual results, never assume work exists" —
 **without** scripting the order (drift still possible).
 
-**A harness confound found + fixed (do not skip this).** `plans/` is **gitignored** in shofer
+**A harness confound found + fixed (do not skip this).** `plans/` was **gitignored** in that repo
 (`.gitignore:57`), so the worktree reset (`git clean -fd`, no `-x`) **left the previous run's
 code-laden design in place** — priming both the driver and the Developer that work "already
 exists." The first batch (with the confound) scored **1/5**; after fixing the reset
@@ -340,4 +340,13 @@ auto-generated diagrams** that native workflows/turn-by-turn lack, and on the br
 it embodies: **a grounded verification step in the loop is what protects against hallucination /
 lazy termination** (the same reason to add a verifier to any autonomous agent loop).
 Harnesses: `convergence-rate.sh` (A), `driver.ts`+`driver-rate.sh` (B), `armc-workflow.js` +
-`armc-complex.js` (C), `implement-feature-complex.slang` (complexity); raw data in `/tmp/slang/diag/`.
+`armc-complex.js` (C), `implement-feature-complex.slang` (complexity). Per-run CSVs are written
+to `$BENCH_OUT` (default `/tmp/slang-bench/diag`), regenerated on each run.
+
+> **Reproducibility.** The *original* runs above were done on a worktree of a large internal
+> repo (base `5429efcab`). The published harness is
+> **self-contained**: `harness/setup_target.sh` builds a minimal TS + vitest scaffold
+> (`benchmark/target/`) as the codebase the agents implement into, so anyone can re-run A/B/C
+> without that repo — see [`../README.md` § Reproduce](../README.md). Numbers are directional and
+> model-/codebase-dependent; the *shape* (codified A/C reliable, turn-by-turn B task-dependent)
+> is the finding, not the exact rates.

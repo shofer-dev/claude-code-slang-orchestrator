@@ -1,10 +1,10 @@
 export const meta = {
   name: 'armC-implement-feature',
-  description: 'Arm C: native dynamic workflow coordinating Architect->Developer<->Reviewer to implement a src/utils helper in the shofer worktree (benchmark vs slang arms A/B). Feature via args {feature, implFile, examples}.',
+  description: 'Arm C: native dynamic workflow coordinating Architect->Developer<->Reviewer to implement a src/utils helper in the target workdir (benchmark vs slang arms A/B). Feature via args {feature, implFile, examples}.',
   phases: [{ title: 'Design' }, { title: 'Implement' }, { title: 'Review' }],
 }
 
-const WT = '/tmp/slang/shofer'
+const WT = process.env.BENCH_WORKDIR || '/tmp/slang-bench/target'
 // NOTE: `args` did NOT propagate to the agents when this was run via {scriptPath, args} — the
 // defaults below silently won, so it built formatDuration even when asked for formatBytes. For a
 // different feature, hardcode it in an inline `script` instead (see armc-workflow-formatbytes.js).

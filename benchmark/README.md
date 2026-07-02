@@ -24,10 +24,33 @@ Hold the *work* constant, vary only the *coordinator* (the live-memory confound 
 
 ## Task
 
-`extensions/shofer/src/media/workflows/implement-feature.slang` — a 3-agent flow
-(Architect → Developer ⇄ Reviewer) with a **review loop**, **output contracts** on every
-routed stake, **mailbox routing**, and **two `@Human` escalations**. Run on a faithful
-**master** worktree of shofer (`harness/setup_worktree.sh`), implementing real features.
+`workflows/implement-feature.slang` — a 3-agent flow (Architect → Developer ⇄ Reviewer) with a
+**review loop**, **output contracts** on every routed stake, **mailbox routing**, and **two
+`@Human` escalations**. The agents implement small `src/utils` helpers (e.g. `formatDuration`,
+`formatBytes`, an `LRUCache`) into a **self-contained TS + vitest scaffold** (`target/`, built by
+`harness/setup_target.sh`) — so the benchmark runs anywhere. *(The originally-published runs used
+a worktree of a large internal repo; see [`results/RESULTS.md` § Reproducibility](results/RESULTS.md).)*
+
+## Reproduce it yourself
+
+**Prereqs:** Node 22+, the `claude` CLI on your `PATH` (authenticated — a Claude subscription or
+`ANTHROPIC_API_KEY`), and the server deps installed (`cd server && pnpm install`).
+
+```bash
+cd server && pnpm install && cd ..                 # once: the executor's Agent SDK deps
+bash benchmark/harness/setup_target.sh             # build the self-contained target scaffold
+
+# Arm A (slang operator) — 5 runs:
+bash benchmark/harness/convergence-rate.sh 5
+# Arm B (turn-by-turn LLM driver) — 5 runs:
+bash benchmark/harness/driver-rate.sh 5
+```
+
+Override paths via env: `BENCH_WORKDIR` (target dir), `BENCH_OUT` (CSV output dir). A second
+feature reuses the scripts via `PARAMS` / `IMPL_FILE` / `CSV_NAME`; the complex flow via
+`WF=…/implement-feature-complex.slang` + a `CHECK_CMD`. **Arm C** uses Claude Code's native
+dynamic-workflows feature — run `harness/armc-*.js` via the `Workflow` tool (they read
+`BENCH_WORKDIR`). Per-run CSVs land in `$BENCH_OUT`.
 
 ## Metrics (all)
 
@@ -56,8 +79,9 @@ hallucination / lazy-termination at any complexity.
 ## Harness
 
 Shared setup:
-- **`setup_worktree.sh [wt] [ref]`** — faithful build-env shofer worktree at master HEAD
-  (`pnpm install --offline` + built `@shofer/*` + `vscode-shim` link + base `tsc` clean).
+- **`setup_target.sh [dir]`** — builds a **self-contained** TS + vitest scaffold (`../target/`)
+  into `$BENCH_WORKDIR` (default `/tmp/slang-bench/target`) as the codebase the agents implement
+  into, and `git init`s it so the harness can reset between runs. No private repo needed.
 - **`workflows/implement-feature.slang`** — benchmark-owned, hardened copy of the flow
   (Architect `write_paths:["**/*.md"]`+`deny:[Bash]` so it designs but cannot self-implement;
   `create_design` has an output contract + "write then stop" instruction).

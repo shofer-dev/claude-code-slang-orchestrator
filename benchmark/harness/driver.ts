@@ -18,7 +18,7 @@ const params: Record<string, string> = process.argv[3] ? JSON.parse(process.argv
 const cwd = process.argv[4] ?? process.cwd()
 const MAX_STEPS = Number(process.env.DRIVER_MAX_STEPS) || 20
 const STAKE_TIMEOUT_MS = Number(process.env.STAKE_TIMEOUT_MS) || 300_000
-const DRIVER_CWD = "/tmp/slang/driver" // neutral cwd (small dir → control-protocol-free path unaffected)
+const DRIVER_CWD = process.env.DRIVER_CWD || "/tmp/slang-bench/driver" // neutral cwd (small dir → control-protocol-free path unaffected)
 mkdirSync(DRIVER_CWD, { recursive: true })
 
 const { ast, errors } = parseSlang(readFileSync(flowPath, "utf8"))

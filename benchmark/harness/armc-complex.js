@@ -1,9 +1,9 @@
 export const meta = {
   name: 'armC-complex',
-  description: 'Arm C (complexity): native 5-agent pipeline (Architect->Developer->Tester->Reviewer->Documenter) implementing a multi-file LRUCache (code + spec + docs) in the shofer worktree. Feature hardcoded.',
+  description: 'Arm C (complexity): native 5-agent pipeline (Architect->Developer->Tester->Reviewer->Documenter) implementing a multi-file LRUCache (code + spec + docs) in the target workdir. Feature hardcoded.',
   phases: [{ title: 'Design' }, { title: 'Implement' }, { title: 'Test' }, { title: 'Review' }, { title: 'Document' }],
 }
-const WT = '/tmp/slang/shofer'
+const WT = process.env.BENCH_WORKDIR || '/tmp/slang-bench/target'
 const DP = `${WT}/plans/feature-design.md`
 const S = (props) => ({ type: 'object', properties: props, required: Object.keys(props), additionalProperties: false })
 
