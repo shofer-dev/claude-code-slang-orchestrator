@@ -80,8 +80,9 @@ export function formatEmittedValue(value: unknown): string {
 	}
 }
 
-/** Guard against compiler/eval bugs producing an infinite control-flow loop. */
-export const MAX_CONTROL_FLOW_STEPS = 10_000
+// Infinite-control-flow-loop guard — centralized in constants.ts (re-exported for callers).
+import { MAX_CONTROL_FLOW_STEPS } from "../constants.js"
+export { MAX_CONTROL_FLOW_STEPS }
 
 // ── Compiler ──
 

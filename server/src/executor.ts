@@ -27,9 +27,7 @@ import {
 	routeOutput,
 	toBool,
 } from "./slang/slang-interpreter.js"
-
-const MAX_RETRIES = 3
-const DEFAULT_MAX_ROUNDS = 100
+import { DEFAULT_MAX_ROUNDS, MAX_RETRIES } from "./constants.js"
 
 export interface EscalationRequest {
 	/** The agent raising the escalation. */
