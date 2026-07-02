@@ -40,12 +40,18 @@ routed stake, **mailbox routing**, and **two `@Human` escalations**. Run on a fa
   LLM-arm's overhead.
 - **Variance**: run-to-run consistency.
 
-## Hypothesis: complexity-shaped
+## Hypothesis: complexity-shaped — TESTED and REFUTED
 
-Expect, by analogy to live-memory's "task-shaped" result: on trivial flows the LLM
-orchestrator does fine (no gap); the slang reliability advantage **grows with coordination
-complexity** (more agents, loops, contracts, longer context where the LLM forgets the
-protocol). `implement-feature` is deliberately at the complex end.
+The original hypothesis was that the slang reliability advantage **grows with coordination
+complexity** (more agents/loops/context). We tested it with a 5-agent pipeline
+(`implement-feature-complex.slang`) — and it does **not** hold: turn-by-turn LLM coordination
+went from **3/5 on the simple 3-agent task → 5/5 on the harder 5-agent task** (it did *better*
+with more decomposition). Reliability is **task-dependent** (a *confusable handoff* — an
+architect that embeds code in the design — is what tripped turn-by-turn, not scale), not
+monotonic in complexity. See [`results/RESULTS.md` § Complexity test](results/RESULTS.md). The
+robust differentiator is slang's **enforced guarantees + diagrams**, and the general principle
+the benchmark establishes: **a grounded verification step in the loop** protects against
+hallucination / lazy-termination at any complexity.
 
 ## Harness
 
@@ -55,6 +61,10 @@ Shared setup:
 - **`workflows/implement-feature.slang`** — benchmark-owned, hardened copy of the flow
   (Architect `write_paths:["**/*.md"]`+`deny:[Bash]` so it designs but cannot self-implement;
   `create_design` has an output contract + "write then stop" instruction).
+- **`workflows/implement-feature-complex.slang`** — the complexity-test flow: a 5-agent linear
+  pipeline (Architect→Developer→Tester→Reviewer→Documenter) producing a multi-file feature.
+- The rate scripts take env overrides: `WF` (workflow), `PARAMS`, `IMPL_FILE`, `CHECK_CMD`
+  (a full-delivery predicate), `CSV_NAME` — so a second feature / the complex flow reuse them.
 
 Arm A — **slang (Operator)**:
 - **`smoke.ts`** — headless `parseSlang` → `runWorkflow` with the real `AgentSdkDispatcher`,
@@ -70,10 +80,15 @@ Arm A — **slang (Operator)**:
 Arm B — **LLM-orchestrated (Driver)**:
 - **`driver.ts`** — the **same** role-agents (parsed from the same workflow → identical
   tools/role/`write_paths`), same worktree, same feature, but an **LLM coordinator** decides
-  each step (`run_architect`/`run_developer`/`run_reviewer`/`finish`, via structured output)
-  instead of the slang executor. Records coordination tokens + protocol fidelity.
-- **`driver-rate.sh [N]`** — N driver runs → CSV of converged / steps / which roles ran /
-  whether the FINAL work was reviewed / driver tokens / impl.
+  each step via structured output instead of the slang executor. Its role-actions are **derived
+  from the workflow's agents** (works for the 3- and 5-agent flows alike). Records coordination
+  tokens + protocol fidelity.
+- **`driver-rate.sh [N]`** — N driver runs → CSV of converged / steps / roles ran / driver tokens / impl.
+
+Arm C — **native dynamic workflows**: **`armc-workflow.js`** (formatDuration, the reusable one),
+**`armc-workflow-formatbytes.js`** and **`armc-complex.js`** (feature-hardcoded variants) — JS
+orchestration scripts run via the `Workflow` tool, coordinating the same role-agents. *(Note:
+`args` did not propagate to workflow agents, so per-feature variants hardcode the feature.)*
 
 ## Status
 
@@ -95,4 +110,8 @@ Arm B — **LLM-orchestrated (Driver)**:
       C **5/5**, B **3/5** (combined across 2 features: codified A/C = 10/10, turn-by-turn B = 6/10).
       Two harness bugs found + corrected mid-run (arm-B leftover-design confound; arm-C `Workflow`
       args-propagation) — see RESULTS.
+- [x] **Complexity test** (`implement-feature-complex.slang`, 5-agent pipeline, multi-file
+      feature, all 3 arms × 5, full-delivery metric): **all three arms 5/5** — turn-by-turn went
+      **3/5 → 5/5**, *refuting* the "gap widens with complexity" hypothesis. Reliability is
+      task-dependent, not scale-monotonic. See RESULTS § Complexity test.
 - [ ] More models + more reps (still one model, directional).
