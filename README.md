@@ -121,6 +121,7 @@ testable without the Agent SDK or any model calls (see [`server/test/`](server/t
 server/
   src/
     main.ts                  MCP server + tool surface
+    constants.ts             tunable defaults in one place (round cap, retry budget, stake timeout, loop guard)
     executor.ts              deterministic round loop + output contracts
     dispatcher.ts            Dispatcher interface + FakeDispatcher (the agent-runtime seam)
     agent-sdk-dispatcher.ts  production backend (Claude Agent SDK)
