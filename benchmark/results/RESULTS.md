@@ -276,6 +276,38 @@ robust across two features (codified A/C = **10/10**; turn-by-turn B = **6/10**)
 > cuts both ways: even the native-workflow path has footguns that need per-run verification —
 > which is exactly what slang's enforced contracts provide.
 
+### Complexity test — "the gap widens with complexity" is REFUTED (it's task-dependent)
+
+To test the positioning claim that the codified-vs-turn-by-turn gap *widens with coordination
+complexity*, we ran a deliberately harder workflow: a **5-agent pipeline** (Architect →
+Developer → Tester → Reviewer → Documenter, `implement-feature-complex.slang`) implementing a
+**multi-file** feature (an `LRUCache`: class + vitest spec + usage doc = **3 required
+deliverables**). All three arms × 5 runs, scored on **full delivery** (all 3 artifacts present
+— catches a coordinator that drops a stage):
+
+| | A — slang | C — native workflow | B — turn-by-turn LLM |
+|---|---|---|---|
+| **full delivery** | **5/5** | **5/5** | **5/5** |
+| coordination tokens/run | 0 | ~0 | ~155k |
+
+**The hypothesis is refuted.** Turn-by-turn (arm B) went from **3/5 on the simple task → 5/5 on
+the complex one** — it did *better* with more coordination, not worse. Root cause: arm B's
+simple-task failures were **never about complexity**; they were a **confusable handoff** — the
+`.md`-only Architect embeds the full implementation as a code block in the design, so the
+Developer reads a code-laden design and reports "already done" without writing. The 5-stage
+task **removes that ambiguity** (each role has a distinct, unmistakable deliverable: design /
+code / tests / review / docs), so the coordinator has nothing to be fooled by. **More
+decomposition *helped* the turn-by-turn coordinator.**
+
+**Corrected takeaway.** Reliability is **task-dependent** (which failure modes a task exposes),
+not monotonic in complexity. Turn-by-turn LLM coordination is vulnerable to hallucination /
+lazy-termination on *confusable* tasks and has nothing to catch it; codified arms embed a
+verification step (contracts / a review stage) that does. **What protects against the failure —
+at any complexity — is a grounded verification step in the loop, not "being codified" per se.**
+So slang's differentiation stands where it always was — **enforced guarantees + auto-generated
+diagrams** — *not* a reliability edge that grows with complexity (that specific claim is
+unsupported by this test).
+
 ### Conclusions (the honest reframe)
 
 - **Reliability comes from *codified* orchestration, not from slang specifically.** Across **two
@@ -299,9 +331,13 @@ but still **directional**, not exact rates. Two harness bugs were found and corr
 (both *inflated an arm's failure*, and both are documented above): arm B's first batch had a
 gitignored leftover design (1/5 → 3/5), and arm C/f2's first batch had a `Workflow` args bug
 (bogus 0/5 → 5/5). Arm C's scripts were authored carefully (the reviewer guard is load-bearing);
-a sloppier script could regress. The gap between *codified* and *live-LLM* orchestration widens
-with coordination complexity. **Positioning takeaway:** pitch slang against **turn-by-turn LLM
-coordination** (where it wins on reliability *and* cost), and against **native dynamic workflows**
-on **guarantees + diagrams**, not raw reliability.
-Harnesses: `convergence-rate.sh` (A), `driver.ts`+`driver-rate.sh` (B), `armc-workflow.js` (C);
-raw data in `/tmp/slang/diag/`.
+a sloppier script could regress. **The gap does NOT widen with complexity** — the 5-agent test
+refutes that (arm B went 3/5 → 5/5); the gap is **task-dependent** (it appears on confusable
+handoffs, not on scale). **Positioning takeaway (corrected):** turn-by-turn LLM coordination is
+reliable *when the task is well-decomposed* and fails on *confusable* tasks with nothing to
+catch it — so pitch slang not as "more reliable at scale" but on the **enforced guarantees +
+auto-generated diagrams** that native workflows/turn-by-turn lack, and on the broader principle
+it embodies: **a grounded verification step in the loop is what protects against hallucination /
+lazy termination** (the same reason to add a verifier to any autonomous agent loop).
+Harnesses: `convergence-rate.sh` (A), `driver.ts`+`driver-rate.sh` (B), `armc-workflow.js` +
+`armc-complex.js` (C), `implement-feature-complex.slang` (complexity); raw data in `/tmp/slang/diag/`.
