@@ -1,13 +1,17 @@
 {
   "name": "shofer-slang-orchestrator",
   "owner": { "name": "shofer.dev" },
+  "metadata": {
+    "description": "slang-workflows — provable, .slang-driven multi-agent workflows for Claude Code: a non-LLM executor runs typed workflow files with enforced contracts, tool-scoping, and auto-generated topology/trace diagrams. A standalone shofer.dev Claude Code plugin."
+  },
   "plugins": [
     {
       "name": "slang-workflows",
       "source": "./",
       "description": "Run deterministic, .slang-driven multi-agent workflows inside Claude Code. A non-LLM state machine in an MCP server coordinates agents (via the Agent SDK); the top-level session triggers and observes runs.",
-      "homepage": "https://github.com/shofer-dev",
-      "repository": "https://github.com/shofer-dev/claude-code-slang-orchestrator"
+      "homepage": "https://github.com/shofer-dev/claude-code-slang-orchestrator",
+      "repository": "https://github.com/shofer-dev/claude-code-slang-orchestrator",
+      "license": "Apache-2.0"
     }
   ]
 }
