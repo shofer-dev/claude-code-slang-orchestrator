@@ -55,6 +55,33 @@ Concrete workflows (each is a `.slang` file you run with `run_workflow`):
 - **Convergence-driven collaboration** — agents route via mailboxes and iterate until a declared convergence
   condition or budget is reached, with session resume so an agent keeps its context across rounds.
 
+## How this differs from Claude Code's native *dynamic workflows*
+
+Claude Code already has a built-in **dynamic workflows** feature: when a task needs orchestration, Claude
+writes a **JavaScript script** (via the Agent SDK / `Workflow` tool) that spawns and coordinates subagents.
+That's a real step up from improvised, one-off subagent calls — the script codifies the orchestration and,
+once written, runs deterministically and coordinates for ~0 extra LLM cost. slang shares those goals; our
+[benchmark](benchmark/) shows **both** approaches reach real, working implementations with near-zero
+coordination-LLM cost. **The difference is what the orchestration *is*, and what's *guaranteed* about it:**
+
+| | Native dynamic workflows | slang-workflows |
+|---|---|---|
+| The orchestration is… | an **LLM-authored JavaScript** script | a **typed, declarative `.slang`** file run by a fixed non-LLM executor |
+| Who wrote the coordination logic | Claude, per task, in a general-purpose language | you (or an LLM, once) in a domain-specific language the runtime understands |
+| Output contracts between stages | whatever the script happens to check | **enforced** by the runtime — structural + semantic (`output: {…} where <expr>`); invalid → retry |
+| Per-agent tool scoping | up to the script | **enforced** — `write_paths` / `deny` via the SDK's `canUseTool` |
+| Correctness of the structure | nothing checks the JS | **static analysis before running** — deadlock / unknown-ref / orphan-output |
+| Termination | up to the script | **provable** — `budget: rounds(N)` + per-stake timeouts |
+| Observability | instrument it yourself | **auto-generated** Mermaid topology + sequence-diagram trace |
+| The reusable artifact | a script the model regenerates each time | a **versioned `.slang` file** + a fixed interpreter |
+
+In short: native dynamic workflows put the orchestration in **LLM-written code you have to trust**; slang
+puts it in a **typed declaration the runtime validates and enforces** — analyzable *before* it runs, scoped
+and contract-checked *while* it runs, and rendered as diagrams *after*. Reach for slang when you want
+**guarantees and auditability** (safety-scoped agents, provable termination, contract-valid hand-offs, a
+reusable versioned workflow), not just "the model coordinated some subagents this time." Both are far better
+than unstructured subagents — slang trades a bit of up-front declaration for enforcement and repeatability.
+
 ## What works today
 
 - Discover / validate / run `.slang` workflows — **authored or LLM-generated inline** (MCP tools below).
