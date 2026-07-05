@@ -40,7 +40,7 @@ with plugin extensions — is [`slang_specs.md`](slang_specs.md) in this folder.
 | Multi-agent stake routing | ✅ | unit + real (21 → doubled to 42) |
 | Session resume (one agent = one session across stakes) | ✅ | real (recalled a secret across stakes) |
 | `escalate @Human` executor logic | ✅ | unit (fake handler) |
-| `escalate @Human` via MCP elicitation | ⚠️ wired, not headless-testable | needs a live Claude Code session |
+| `escalate @Human` via MCP elicitation | ✅ mechanism verified | scripted MCP client round-trips `elicitInput` on `08-escalation` (both branches → `approved`/`rejected`) — `server/test/elicitation-live.mjs`; live Claude Code UI rendering still worth a manual look |
 
 **Deviations from the design below, discovered during implementation:**
 
