@@ -197,6 +197,21 @@ This directory is a self-contained plugin: [`.claude-plugin/plugin.json`](.claud
 + [`.mcp.json`](.mcp.json) (a stdio server launched as `npx tsx ${CLAUDE_PLUGIN_ROOT}/server/src/main.ts`).
 Install it through Claude Code's plugin mechanism to expose the tools automatically.
 
+### Slash commands
+
+Once the plugin is loaded, these commands drive it directly (Claude Code namespaces them by the
+plugin, so your `/` menu shows `slang-workflows:…`):
+
+| Command | Does |
+|---------|------|
+| `/slang-workflows:slang-run <name or path> [k=v …]` | Run a workflow to completion — synchronous, so `@Human` gates prompt you. |
+| `/slang-workflows:slang-list` | List the `.slang` workflows it can see. |
+| `/slang-workflows:slang-new <description>` | Generate a workflow from a description, validate it, and run it. |
+| `/slang-workflows:slang-trace [workflow_id]` | Render the topology + sequence-diagram trace of a run. |
+
+They're thin wrappers over the MCP tools below — you can always just ask Claude in natural
+language instead (e.g. *"run the where-clause workflow"*).
+
 ## MCP tools
 
 | Tool | Purpose |
