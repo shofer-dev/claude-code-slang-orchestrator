@@ -312,10 +312,12 @@ unsupported by this test).
 
 - **Reliability comes from *codified* orchestration, not from slang specifically.** Across **two
   features** (10 runs each) both arm A (slang DSL) and arm C (native JS workflow) ship **10/10**;
-  the turn-by-turn LLM coordinator (arm B) ships **6/10** with a **~40% silent false-convergence**
-  rate — consistent on both tasks. The dividing line is *codified vs. live-LLM* coordination —
-  and arm B's turn-by-turn model is precisely what Claude Code's native dynamic-workflows feature
-  was **shipped to replace**.
+  the turn-by-turn LLM coordinator (arm B) shipped **6/10** here. **⚠️ Superseded:** the N=5 batches
+  this bullet summarizes reported a "~40% silent false-convergence" — the **N=10/model firm-up
+  (§ Firmed-up reliability) found 0%**, so that gap was small-N variance, not a real effect. The
+  durable dividing line is not reliability but **coordination cost** (~0 for codified A/C vs ~95k
+  tokens/run for live-LLM B) — and arm B's turn-by-turn model is what Claude Code's native
+  dynamic-workflows feature was **shipped to replace**.
 - **So slang does *not* win on raw reliability against modern tooling** — a native dynamic
   workflow matches it. slang's differentiation is the **guarantees and tooling on top of
   codified orchestration** (the bottom half of the table): enforced output contracts, static
@@ -326,35 +328,43 @@ unsupported by this test).
 - **Coordination cost:** ~0 per-run LLM for both codified arms (A, C) vs ~100k/run for the
   live-LLM coordinator (B).
 
-### Second model (Fable) — the arm-B drift is model-dependent
+### Firmed-up reliability (N=10 per model) — the false-convergence claim does not hold up
 
-The runs above were all on Sonnet. Re-running on **`claude-fable-5`** (arm A ×2 as a control,
-arm B ×5; via the `BENCH_MODEL` env; same feature + self-contained scaffold) **partially refutes
-the arm-B result**:
+The runs above were all on Sonnet at N=5. Re-running arm B **×10 on each of two models** (`sonnet`
+and `claude-fable-5`; same feature + self-contained scaffold; via `BENCH_MODEL`) does **not**
+reproduce the "silent false-convergence" that was the headline arm-B failure:
 
-| | A — slang (codified) | B — turn-by-turn LLM |
-|---|---|---|
-| **Sonnet** | 5/5 | **3/5** — 40% silent false-convergence |
-| **Fable**  | 2/2 | **5/5** — 0%; architect + developer + reviewer + final review ran *every* run |
+| arm B (turn-by-turn) | converged | review ran (no skip) | silent false-convergence | impl at expected path | coord tokens/run |
+|---|---|---|---|---|---|
+| **Sonnet** ×10 | 9/10¹ | 9/9 | **0/10** | 8/10² | ~98k |
+| **Fable** ×10  | 10/10 | 10/10 | **0/10** | 9/10² | ~95k |
 
-- **Arm A (control) holds on Fable** — codified coordination stays reliable (2/2, impl every run),
-  confirming it's model-independent *by construction*. It was also **~4× faster** (271s vs Sonnet's
-  1075s/run).
-- **The turn-by-turn drift did NOT replicate.** On Fable the coordinator followed the full protocol
-  every run — the silent-false-convergence that cost Sonnet 3/5 is **model-dependent, not universal.**
-  Arm B still burned **~95k coordination tokens/run** (vs 0 for codified) to do it.
+¹ one run was a harness/launch crash (the driver process died), not a coordination failure.
+² the misses are "converged **and** the review ran, but the impl file wasn't at the exact expected
+path" — a naming/path quirk of the file-existence checker, **not** the review-skipping the original
+claim described.
 
-**What this changes.** The reliability *gap* between codified and turn-by-turn is **not robust across
-models** — on this task it was partly a Sonnet behavior. The honest claim is therefore *not* "turn-by-turn
-always drifts" (Fable didn't), but: **turn-by-turn reliability is model- and task-contingent — 3/5 here,
-5/5 there, a variance you don't control — whereas codified orchestration removes that variance entirely.**
-The model-*independent* differentiators are untouched: enforced contracts / tool-scoping / static analysis,
-auto-generated diagrams, and ~0 vs ~95k coordination tokens/run. *(Directional: N=5, one feature; Sonnet's
-3/5 could itself carry run-to-run variance — a firmer number needs more reps / models.)*
+Arm A (slang) control on Fable: **2/2**, impl every run, **~4× faster** (271s vs Sonnet's 1075s/run)
+— codified reliability holds across models by construction.
 
-**Honest caveats.** Two features on Sonnet (5 runs/arm/feature) plus a second-model cross-check on
-Fable (§ Second model) — firmer than a single feature/model but still **directional**, not exact
-rates, and the arm-B failure rate is now known to be **model-dependent** (3/5 Sonnet vs 5/5 Fable). Two harness bugs were found and corrected mid-way
+**Correction to the headline.** At N=10, **silent false-convergence is 0% on both models** — every
+converged run actually ran the review. The original Sonnet **3/5 (40%)** — itself a confound-corrected
+1/5→3/5 (§ Arm B) — was **small-N variance**, not a robust turn-by-turn behavior. So this benchmark
+does **not** establish a meaningful reliability gap between codified and turn-by-turn coordination on
+this task: turn-by-turn is about as reliable — it just **pays ~95–98k coordination tokens/run** to get
+there (codified: ~0). **Treat the "~40% silent false-convergence" figures elsewhere in this doc as
+superseded by this firm-up.**
+
+**What robustly survives** as codified/slang's model-independent edge — none of which depends on
+out-drifting a live coordinator: **~0 vs ~95k coordination tokens/run**, enforced output contracts +
+tool-scoping + static analysis + provable termination, and auto-generated topology/trace diagrams.
+
+**Honest caveats.** The strongest data is the **N=10-per-model firm-up** (§ Firmed-up reliability),
+which shows the arm-B "silent false-convergence" is **0% on both models** — the original N=5 3/5 was
+**variance, not a real gap**. The two-feature Sonnet N=5 numbers below predate that and are directional
+at best; **the "~40% silent false-convergence" headline is superseded** — treat the durable findings as
+*coordination cost* (~0 vs ~95k tokens/run) and *enforced guarantees + diagrams*, not a reliability gap.
+Two harness bugs were found and corrected mid-way
 (both *inflated an arm's failure*, and both are documented above): arm B's first batch had a
 gitignored leftover design (1/5 → 3/5), and arm C/f2's first batch had a `Workflow` args bug
 (bogus 0/5 → 5/5). Arm C's scripts were authored carefully (the reviewer guard is load-bearing);
@@ -375,5 +385,7 @@ to `$BENCH_OUT` (default `/tmp/slang-bench/diag`), regenerated on each run.
 > **self-contained**: `harness/setup_target.sh` builds a minimal TS + vitest scaffold
 > (`benchmark/target/`) as the codebase the agents implement into, so anyone can re-run A/B/C
 > without that repo — see [`../README.md` § Reproduce](../README.md). Numbers are directional and
-> model-/codebase-dependent; the *shape* (codified A/C reliable; turn-by-turn B task- **and
-> model**-dependent) is the finding, not the exact rates.
+> model-/codebase-dependent. At N=10/model the reliability *shape* is: **codified and turn-by-turn are
+> comparably reliable** on this task (turn-by-turn false-convergence 0%) — the durable difference is
+> **coordination cost** (~0 vs ~95k tokens/run) plus slang's **enforced guarantees + diagrams**, not a
+> reliability gap. The earlier "gap" was small-N variance.
