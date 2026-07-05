@@ -16,7 +16,7 @@ import { runWorkflow, type EscalationRequest, type WorkflowEvent } from "./execu
 import { AgentSdkDispatcher } from "./agent-sdk-dispatcher.js"
 import { eventsToSequenceDiagram, serializeFlowState, topologyToMermaid, type FlowState } from "./slang/slang-types.js"
 
-const VERSION = "0.1.0"
+const VERSION = "0.1.2"
 
 function jsonResult(data: unknown) {
 	return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] }

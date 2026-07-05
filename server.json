@@ -1,0 +1,10 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.shofer-dev/slang-workflows",
+  "description": "Provable, declarative multi-agent workflows for Claude Code — a non-LLM executor runs typed .slang files with enforced output contracts, static analysis, tool-scoping, provable termination, and auto-generated topology + trace diagrams. Runs inside Claude Code (uses the Claude Agent SDK / claude CLI).",
+  "repository": { "url": "https://github.com/shofer-dev/claude-code-slang-orchestrator", "source": "github" },
+  "version": "0.1.2",
+  "packages": [
+    { "registryType": "npm", "identifier": "slang-workflows", "version": "0.1.2", "transport": { "type": "stdio" } }
+  ]
+}

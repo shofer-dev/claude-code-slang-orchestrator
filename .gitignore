@@ -9,3 +9,6 @@ pnpm-lock.yaml
 dist/
 *.tsbuildinfo
 .DS_Store
+
+# npm build output
+server/dist/

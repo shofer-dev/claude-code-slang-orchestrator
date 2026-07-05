@@ -1,29 +1,55 @@
 {
-  "name": "slang-workflows-mcp",
-  "version": "0.1.0",
-  "private": true,
+  "name": "slang-workflows",
+  "version": "0.1.2",
   "type": "module",
-  "description": "Deterministic, .slang-driven multi-agent workflow executor as a Claude Code MCP server.",
-  "license": "MIT",
-  "main": "src/main.ts",
-  "_dispatchDep": "@anthropic-ai/claude-agent-sdk is the dispatch-layer dependency, kept optional because some registries don't mirror it. The executor depends on it only through the Dispatcher interface; promote it to dependencies once reachable.",
+  "description": "Provable, declarative multi-agent workflows for Claude Code — a non-LLM executor runs typed .slang files with enforced output contracts, static analysis, tool-scoping, provable termination, and auto-generated topology + trace diagrams. Runs inside Claude Code (uses the Claude Agent SDK / `claude` CLI).",
+  "license": "Apache-2.0",
+  "author": "shofer.dev",
+  "homepage": "https://github.com/shofer-dev/claude-code-slang-orchestrator",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shofer-dev/claude-code-slang-orchestrator.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shofer-dev/claude-code-slang-orchestrator/issues"
+  },
+  "keywords": [
+    "mcp",
+    "claude-code",
+    "workflow",
+    "multi-agent",
+    "orchestration",
+    "slang",
+    "deterministic"
+  ],
+  "mcpName": "io.github.shofer-dev/slang-workflows",
+  "bin": {
+    "slang-workflows": "dist/main.js"
+  },
+  "main": "dist/main.js",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "tsx src/main.ts",
     "start": "tsx src/main.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --test --import tsx test/*.test.ts",
-    "test:elicitation": "node test/elicitation-live.mjs"
+    "build": "esbuild src/main.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/main.js --banner:js='#!/usr/bin/env node' && cp src/*.mjs dist/ && chmod +x dist/main.js",
+    "prepublishOnly": "npm run build",
+    "test": "node --test --import tsx test/*.test.ts"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.187",
     "@modelcontextprotocol/sdk": "1.29.0",
     "zod": "3.25.76"
-  },
-  "optionalDependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.3.187"
   },
   "devDependencies": {
     "@esbuild/linux-x64": "0.28.1",
     "@types/node": "24.2.1",
+    "esbuild": "0.28.1",
     "tsx": "4.22.4",
     "typescript": "5.8.3"
   }
