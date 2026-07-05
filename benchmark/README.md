@@ -54,9 +54,12 @@ dynamic-workflows feature — run `harness/armc-*.js` via the `Workflow` tool (t
 
 ## Metrics (all)
 
-- **Protocol reliability** (primary): % of runs where the implementation was *genuinely
-  reviewed before commit* — Reviewer actually invoked, the loop ran, rejections → fixes,
-  final review happened. Slang: guaranteed by construction; LLM-arm: drifts.
+- **Protocol reliability**: % of runs where the implementation was *genuinely reviewed before
+  commit* — Reviewer actually invoked, the loop ran, rejections → fixes, final review happened.
+  Slang: guaranteed by construction; LLM-arm: *can* drift — but at N=10/model the drift rate was
+  **0%** (see RESULTS § Firmed-up), so this is a guarantee difference, not an observed-rate gap.
+- **Coordination cost** (the primary *durable* finding): top-level orchestrator tokens — slang ≈
+  **0** vs the LLM-arm's ~95–98k/run.
 - **Feature correctness**: `tsc` + tests green (the faithful-env acceptance).
 - **Quality**: did review *catch* real issues (defect-catch rate).
 - **Coordination cost** (secondary): top-level orchestrator tokens — slang ≈ **0** vs the
@@ -121,11 +124,10 @@ orchestration scripts run via the `Workflow` tool, coordinating the same role-ag
       timeout (always terminates), `write_paths` (command-hook backed; works in the worktree),
       `deny:` tool control, `create_design` termination tune. 49 unit tests pass.
 - [x] **Arm A rate: 5/5 converged** (`convergence-rate.sh`), 0 launch errors, impl every run.
-- [x] **Arm B rate** (`driver-rate.sh`): fair LLM driver **3/5 real implementations**
-      (5/5 self-report "converged" → **40% silent false-convergence**); ~98–135k coordination
-      tokens/run (arm A: 0). *Correction:* an earlier batch scored 1/5 but was confounded by a
-      gitignored leftover design (reset now `rm -rf plans`); 3/5 is the clean number. Two
-      failure modes + mechanism in [`results/RESULTS.md`](results/RESULTS.md).
+- [x] **Arm B rate** (`driver-rate.sh`): ~95–98k coordination tokens/run (arm A: 0). An early
+      N=5 batch reported "40% silent false-convergence" (3/5), but the **N=10/model firm-up found
+      0%** on both Sonnet and Fable — that gap was small-N variance, **now superseded**. See
+      [`results/RESULTS.md`](results/RESULTS.md) § Firmed-up reliability.
 - [x] **Arm C** — Claude Code's **native dynamic-workflows** feature (`armc-workflow.js`):
       **5/5 real implementations**, ~0 per-run coordination LLM (codified JS script). Matches
       arm A on reliability → the finding is *codified vs. turn-by-turn*, and slang's edge over
@@ -138,4 +140,6 @@ orchestration scripts run via the `Workflow` tool, coordinating the same role-ag
       feature, all 3 arms × 5, full-delivery metric): **all three arms 5/5** — turn-by-turn went
       **3/5 → 5/5**, *refuting* the "gap widens with complexity" hypothesis. Reliability is
       task-dependent, not scale-monotonic. See RESULTS § Complexity test.
-- [ ] More models + more reps (still one model, directional).
+- [x] **Second model + more reps**: arm B ×10 on **Sonnet and Fable** — false-convergence **0/10
+      both** (§ Firmed-up); arm A holds on Fable (2/2, ~4× faster). The reliability gap did not
+      survive; coordination cost + enforced guarantees + diagrams are the durable findings.
