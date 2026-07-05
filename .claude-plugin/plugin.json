@@ -1,6 +1,6 @@
 {
   "name": "slang-workflows",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Run deterministic, .slang-driven multi-agent workflows inside Claude Code. A non-LLM state machine in an MCP server coordinates agents (via the Agent SDK); the top-level session triggers and observes runs.",
   "author": { "name": "shofer.dev" },
   "homepage": "https://github.com/shofer-dev/claude-code-slang-orchestrator",

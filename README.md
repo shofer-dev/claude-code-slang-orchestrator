@@ -16,7 +16,23 @@ as **Mermaid topology + trace diagrams**. See the [benchmark](benchmark/) for th
 > AI-agent VS Code extension — where the deterministic, non-LLM executor was first built. This
 > plugin brings it to Claude Code.
 
-> Design and rationale: [`DESIGN.md`](DESIGN.md). Language reference: [`slang_specs.md`](slang_specs.md).
+> Design and rationale: [`DESIGN.md`](DESIGN.md). Language reference: [`slang_specs.md`](slang_specs.md). Privacy: [`PRIVACY.md`](PRIVACY.md).
+
+## Use cases
+
+- **Reproducible multi-agent pipelines** — codify a plan→implement→verify or fan-out→dedup→verify pipeline
+  that runs the same way every time, instead of improvised subagents you can't reproduce.
+- **Safety-scoped agent teams** — restrict each agent's Write/Edit to specific path globs and `deny`
+  dangerous tools (e.g. `Bash`), enforced by the executor, so a multi-agent run can't touch what it shouldn't.
+- **Catch broken orchestration before it runs** — static analysis flags deadlocks, unknown references, and
+  orphaned outputs at validate time; round budgets + per-stake timeouts guarantee the run terminates.
+- **Auditable, observable runs** — every run renders a Mermaid **topology** (who talks to whom) and a
+  **sequence-diagram trace** (round-by-round event log), inspectable live or post-mortem.
+- **Enforced hand-offs via output contracts** — each agent must return a structurally *and* semantically
+  valid result (`output: {…} where <expr>`) before the next stage proceeds; invalid results retry instead
+  of silently propagating.
+- **Convergence-driven collaboration** — agents route via mailboxes and iterate until a declared
+  convergence condition or budget is reached, with session resume so an agent keeps its context across rounds.
 
 ## What works today
 
