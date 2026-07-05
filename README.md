@@ -18,6 +18,47 @@ as **Mermaid topology + trace diagrams**. See the [benchmark](benchmark/) for th
 
 > Design and rationale: [`DESIGN.md`](DESIGN.md). Language reference: [`slang_specs.md`](slang_specs.md). Privacy: [`PRIVACY.md`](PRIVACY.md).
 
+## How it works
+
+```mermaid
+flowchart TB
+    You(["You"])
+    CC["Claude Code<br/>top-level session"]
+
+    subgraph server["slang-orchestrator · MCP server"]
+        direction TB
+        SL["your .slang workflow<br/>agents · stakes · contracts · converge"]
+        EX["slang executor<br/>deterministic · non-LLM state machine"]
+        MB[("FlowState + mailbox")]
+        SL -->|"parsed once"| EX
+        EX <--> MB
+    end
+
+    subgraph Agents["Agent SDK sessions — the actual work"]
+        direction LR
+        Arch["Architect"]
+        Dev["Developer"]
+        Rev["Reviewer"]
+    end
+
+    You <-->|"ask · approve escalations"| CC
+    CC -->|"run_workflow"| EX
+    EX -->|"topology + trace diagrams"| CC
+    EX ==>|"dispatch stake — one session per agent, resumed"| Agents
+    Agents ==>|"typed result → output-contract check + retry"| EX
+    EX -.->|"escalate @Human"| CC
+
+    classDef brain fill:#eaeaff,stroke:#5b5bd6,stroke-width:2px;
+    class EX brain;
+```
+
+The top-level Claude Code session only **triggers and observes** — it never makes a coordination
+decision. The non-LLM **executor** reads your `.slang` file, dispatches each *stake* to an Agent
+SDK session (one long-lived session per agent, resumed across rounds), checks every result against
+its **output contract** (retrying on failure), routes it through the **mailbox**, and repeats each
+round until the workflow's `converge` condition or round budget is met. Runs render as Mermaid
+**topology** and **trace** diagrams; `escalate @Human` surfaces back to you in the normal chat.
+
 ## Use cases
 
 Concrete workflows (each is a `.slang` file you run with `run_workflow`):

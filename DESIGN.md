@@ -189,6 +189,48 @@ non-determinism `.slang` was designed to eliminate. Reject.
 └───────────────────────────────────────────────────────────────┘
 ```
 
+That box is the **component** view. The executor's **per-round control flow** — the state
+machine that makes coordination deterministic (zero LLM calls in the loop itself) — is:
+
+```mermaid
+flowchart TD
+    Start(["run_workflow"]) --> Init["parse .slang → FlowState<br/>agents · mailbox · round = 0"]
+    Init --> Guard{"round &lt; maxRounds?<br/>opts &gt; budget: rounds(N) &gt; 100"}
+    Guard -->|"no"| Budget(["terminate — budget"])
+    Guard -->|"yes"| Adv["advanceAgent() — next ready agent's op"]
+    Adv --> Op{"op kind"}
+
+    Op -->|"stake → @B"| Disp["dispatch stake<br/>SDK query(prompt, resume = session_id)"]
+    Disp --> Con{"output contract<br/>structural (outputFormat)<br/>+ semantic (where expr)"}
+    Con -->|"fail · attempts &lt; maxRetries"| Disp
+    Con -->|"fail · exhausted"| Fail["stake failed"]
+    Con -->|"pass"| Route["commit · route result → recipient mailbox"]
+
+    Op -->|"escalate @Human"| Esc["pause + checkpoint<br/>await respond_to_escalation<br/>inject answer → mailbox"]
+
+    Route --> More
+    Fail --> More
+    Esc --> More
+    More{"more agents<br/>this round?"} -->|"yes"| Adv
+    More -->|"no"| Conv{"converge when: … ?"}
+    Conv -->|"yes"| Done(["converged"])
+    Conv -->|"no"| Dead{"deadlock?<br/>all blocked / idle"}
+    Dead -->|"yes"| DL(["deadlock"])
+    Dead -->|"no"| Ckpt["round++ · checkpoint FlowState"]
+    Ckpt --> Guard
+
+    classDef term fill:#e8f5e9,stroke:#2e7d32;
+    classDef stop fill:#ffebee,stroke:#c62828;
+    class Done term;
+    class Budget,DL,Fail stop;
+```
+
+Each **stake** is dispatched to the agent's own SDK session (`resume = session_id`, so it keeps
+its history across rounds); the result is validated against the output contract — **structural**
+(`outputFormat`) then **semantic** (`where`) — and a failure re-prompts the *same* session up to
+`MAX_RETRIES` before the stake is marked failed. Convergence, deadlock, and budget are evaluated
+at round boundaries, and `FlowState` is checkpointed each round so a run survives restarts.
+
 The slang stack is framework-agnostic TypeScript. The interpreter's own header states
 the portability contract explicitly:
 
