@@ -34,11 +34,11 @@ flowchart TB
         EX <--> MB
     end
 
-    subgraph Agents["Agent SDK sessions — the actual work"]
+    subgraph Agents["Agent SDK sessions — the agents your .slang declares"]
         direction LR
-        Arch["Architect"]
-        Dev["Developer"]
-        Rev["Reviewer"]
+        A1["Agent A"]
+        A2["Agent B"]
+        A3["Agent …"]
     end
 
     You <-->|"ask · approve escalations"| CC
