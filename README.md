@@ -20,19 +20,23 @@ as **Mermaid topology + trace diagrams**. See the [benchmark](benchmark/) for th
 
 ## Use cases
 
-- **Reproducible multi-agent pipelines** — codify a plan→implement→verify or fan-out→dedup→verify pipeline
-  that runs the same way every time, instead of improvised subagents you can't reproduce.
-- **Safety-scoped agent teams** — restrict each agent's Write/Edit to specific path globs and `deny`
-  dangerous tools (e.g. `Bash`), enforced by the executor, so a multi-agent run can't touch what it shouldn't.
-- **Catch broken orchestration before it runs** — static analysis flags deadlocks, unknown references, and
-  orphaned outputs at validate time; round budgets + per-stake timeouts guarantee the run terminates.
-- **Auditable, observable runs** — every run renders a Mermaid **topology** (who talks to whom) and a
-  **sequence-diagram trace** (round-by-round event log), inspectable live or post-mortem.
-- **Enforced hand-offs via output contracts** — each agent must return a structurally *and* semantically
-  valid result (`output: {…} where <expr>`) before the next stage proceeds; invalid results retry instead
-  of silently propagating.
-- **Convergence-driven collaboration** — agents route via mailboxes and iterate until a declared
-  convergence condition or budget is reached, with session resume so an agent keeps its context across rounds.
+Concrete workflows (each is a `.slang` file you run with `run_workflow`):
+
+- **Implement a feature with a human design-approval gate** (`implement-feature.slang`) — an *Architect*
+  decomposes your request and writes the design doc, but is scoped so it **physically cannot write code**
+  (`write_paths: ["**/*.md"]`, `deny: [Bash]`) and must delegate. You approve the design (`escalate @Human`),
+  then a *Developer* implements it slice-by-slice while a *Reviewer* signs off each round, with a final
+  review gate before it commits.
+- **Ship a feature as separate, verified deliverables** (`implement-feature-complex.slang`) — a linear
+  Design → Implement → Test → Review → Document pipeline where five specialists each produce **one** artifact
+  (the implementation, a *passing* vitest spec, usage docs) and can't do another's job — so code, tests, and
+  docs actually match the design. Converges only when every stage has committed.
+- **Troubleshoot a bug with two independent investigators** (`debug.slang`) — paste the symptom/repro; two
+  developers root-cause it **in parallel, strictly read-only** (no accidental edits), an *Orchestrator*
+  consolidates their independent findings into one fix plan, one developer implements it, and the other
+  **peer-reviews the fix in a loop** until satisfied.
+- **A reviewer that can inspect but never edit** — give the review agent `read`/`execute` and no write
+  scope, so a "check my work" run can run tests and read code but cannot alter it — enforced, not just prompted.
 
 ## What works today
 
