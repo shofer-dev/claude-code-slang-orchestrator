@@ -19,6 +19,7 @@ const cwd = process.argv[4] ?? process.cwd()
 const MAX_STEPS = Number(process.env.DRIVER_MAX_STEPS) || 20
 const STAKE_TIMEOUT_MS = Number(process.env.STAKE_TIMEOUT_MS) || 300_000
 const DRIVER_CWD = process.env.DRIVER_CWD || "/tmp/slang-bench/driver" // neutral cwd (small dir → control-protocol-free path unaffected)
+const MODEL = process.env.BENCH_MODEL || "sonnet" // coordinator + role-agents; override to benchmark a second model (e.g. claude-fable-5)
 mkdirSync(DRIVER_CWD, { recursive: true })
 
 const { ast, errors } = parseSlang(readFileSync(flowPath, "utf8"))
@@ -78,7 +79,7 @@ const tok = { input: 0, output: 0, cache_read: 0, cache_write: 0 }
 async function driverDecide(userPrompt: string) {
   const options: Options = {
     cwd: DRIVER_CWD, allowedTools: [], permissionMode: "bypassPermissions", allowDangerouslySkipPermissions: true,
-    model: "sonnet", systemPrompt: { type: "preset", preset: "claude_code", append: DRIVER_SYS },
+    model: MODEL, systemPrompt: { type: "preset", preset: "claude_code", append: DRIVER_SYS },
     outputFormat: { type: "json_schema", schema: DECISION as never },
   }
   if (process.env.CLAUDE_BIN) options.pathToClaudeCodeExecutable = process.env.CLAUDE_BIN
@@ -115,7 +116,7 @@ void (async () => {
     const res = await dispatcher.runStake({
       agentName, prompt: decision.instructions, sessionId: sessions.get(agentName),
       allowedTools: cfg.allowedTools, disallowedTools: cfg.deny, writePaths: cfg.writePaths,
-      model: "sonnet", systemPrompt: cfg.role, cwd, timeoutMs: STAKE_TIMEOUT_MS,
+      model: MODEL, systemPrompt: cfg.role, cwd, timeoutMs: STAKE_TIMEOUT_MS,
     })
     if (res.sessionId) sessions.set(agentName, res.sessionId)
     const out = res.structured !== undefined ? JSON.stringify(res.structured) : res.result

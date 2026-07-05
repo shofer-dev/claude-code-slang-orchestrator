@@ -326,8 +326,35 @@ unsupported by this test).
 - **Coordination cost:** ~0 per-run LLM for both codified arms (A, C) vs ~100k/run for the
   live-LLM coordinator (B).
 
-**Honest caveats.** Two features, one model, 5 runs/arm/feature — firmer than a single feature
-but still **directional**, not exact rates. Two harness bugs were found and corrected mid-way
+### Second model (Fable) — the arm-B drift is model-dependent
+
+The runs above were all on Sonnet. Re-running on **`claude-fable-5`** (arm A ×2 as a control,
+arm B ×5; via the `BENCH_MODEL` env; same feature + self-contained scaffold) **partially refutes
+the arm-B result**:
+
+| | A — slang (codified) | B — turn-by-turn LLM |
+|---|---|---|
+| **Sonnet** | 5/5 | **3/5** — 40% silent false-convergence |
+| **Fable**  | 2/2 | **5/5** — 0%; architect + developer + reviewer + final review ran *every* run |
+
+- **Arm A (control) holds on Fable** — codified coordination stays reliable (2/2, impl every run),
+  confirming it's model-independent *by construction*. It was also **~4× faster** (271s vs Sonnet's
+  1075s/run).
+- **The turn-by-turn drift did NOT replicate.** On Fable the coordinator followed the full protocol
+  every run — the silent-false-convergence that cost Sonnet 3/5 is **model-dependent, not universal.**
+  Arm B still burned **~95k coordination tokens/run** (vs 0 for codified) to do it.
+
+**What this changes.** The reliability *gap* between codified and turn-by-turn is **not robust across
+models** — on this task it was partly a Sonnet behavior. The honest claim is therefore *not* "turn-by-turn
+always drifts" (Fable didn't), but: **turn-by-turn reliability is model- and task-contingent — 3/5 here,
+5/5 there, a variance you don't control — whereas codified orchestration removes that variance entirely.**
+The model-*independent* differentiators are untouched: enforced contracts / tool-scoping / static analysis,
+auto-generated diagrams, and ~0 vs ~95k coordination tokens/run. *(Directional: N=5, one feature; Sonnet's
+3/5 could itself carry run-to-run variance — a firmer number needs more reps / models.)*
+
+**Honest caveats.** Two features on Sonnet (5 runs/arm/feature) plus a second-model cross-check on
+Fable (§ Second model) — firmer than a single feature/model but still **directional**, not exact
+rates, and the arm-B failure rate is now known to be **model-dependent** (3/5 Sonnet vs 5/5 Fable). Two harness bugs were found and corrected mid-way
 (both *inflated an arm's failure*, and both are documented above): arm B's first batch had a
 gitignored leftover design (1/5 → 3/5), and arm C/f2's first batch had a `Workflow` args bug
 (bogus 0/5 → 5/5). Arm C's scripts were authored carefully (the reviewer guard is load-bearing);
@@ -348,5 +375,5 @@ to `$BENCH_OUT` (default `/tmp/slang-bench/diag`), regenerated on each run.
 > **self-contained**: `harness/setup_target.sh` builds a minimal TS + vitest scaffold
 > (`benchmark/target/`) as the codebase the agents implement into, so anyone can re-run A/B/C
 > without that repo — see [`../README.md` § Reproduce](../README.md). Numbers are directional and
-> model-/codebase-dependent; the *shape* (codified A/C reliable, turn-by-turn B task-dependent)
-> is the finding, not the exact rates.
+> model-/codebase-dependent; the *shape* (codified A/C reliable; turn-by-turn B task- **and
+> model**-dependent) is the finding, not the exact rates.

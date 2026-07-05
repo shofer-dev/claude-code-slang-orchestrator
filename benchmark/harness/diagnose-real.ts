@@ -45,7 +45,7 @@ void (async () => {
   const t0 = Date.now()
   const inner = new AgentSdkDispatcher(claudeBin ? { pathToClaudeCodeExecutable: claudeBin } : {})
   const { result } = await runWorkflow(flow, params, new Tracer(inner),
-    { cwd, defaultModel: "sonnet", onEscalate, onEvent })
+    { cwd, defaultModel: process.env.BENCH_MODEL || "sonnet", onEscalate, onEvent })
   const r = result as any
   console.error(`=== STATUS: ${r.status} rounds:${r.rounds} elapsed:${((Date.now() - t0) / 1000).toFixed(0)}s`)
   console.error("agents:", JSON.stringify((r.agents ?? []).map((a: any) => ({ n: a.name, s: a.status }))))
