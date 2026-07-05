@@ -38,6 +38,23 @@ Concrete workflows (each is a `.slang` file you run with `run_workflow`):
 - **A reviewer that can inspect but never edit** — give the review agent `read`/`execute` and no write
   scope, so a "check my work" run can run tests and read code but cannot alter it — enforced, not just prompted.
 
+## Features
+
+- **Reproducible multi-agent pipelines** — the collaboration is codified in a `.slang` file and driven by a
+  deterministic (non-LLM) executor, so a run unfolds the same way every time — no improvised, unrepeatable
+  subagent coordination.
+- **Enforced per-agent tool-scoping** — `write_paths` restricts each agent's Write/Edit to path globs and
+  `deny` removes tools (e.g. `Bash`), enforced via the SDK's `canUseTool` — not merely requested in a prompt.
+- **Static analysis before running** — `validate_workflow` detects deadlocks, unknown references, and
+  orphaned outputs at parse time, before any tokens are spent.
+- **Typed output contracts** — each stake must return a structurally *and* semantically valid result
+  (`output: {…} where <expr>`); invalid results retry instead of silently propagating downstream.
+- **Provable termination** — round budgets (`budget: rounds(N)`) + per-stake timeouts guarantee every run finishes.
+- **Auto-generated diagrams** — every run renders a Mermaid topology (`get_topology`) and a sequence-diagram
+  trace (`get_trace`), for live or post-mortem inspection.
+- **Convergence-driven collaboration** — agents route via mailboxes and iterate until a declared convergence
+  condition or budget is reached, with session resume so an agent keeps its context across rounds.
+
 ## What works today
 
 - Discover / validate / run `.slang` workflows — **authored or LLM-generated inline** (MCP tools below).
