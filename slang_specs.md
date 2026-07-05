@@ -1,15 +1,15 @@
-# Slang Language Specification (slang-orchestrator)
+# Slang Language Specification (slang-workflows)
 
-> **Scope.** This is the slang language spec for the **slang-orchestrator** plugin — the base
+> **Scope.** This is the slang language spec for the **slang-workflows** plugin — the base
 > spec for the Claude Code MCP server described in [`DESIGN.md`](DESIGN.md). It began as a fork of
 > the slang spec from [**Shofer**](https://shofer.dev) (the AI-agent VS Code extension) and
 > documents the vendored parser, static resolver, and interpreter that ship under
 > [`server/src/slang/`](server/src/slang/). It extends the base language only where marked
-> `(* slang-orchestrator extension *)`; plugin-specific additions (e.g. the output-contract `where`
+> `(* slang-workflows extension *)`; plugin-specific additions (e.g. the output-contract `where`
 > clause) are documented **here**.
 
 Reference for authoring `.slang` workflow files. This documents the vendored parser, static
-resolver, and round-based interpreter as shipped in the slang-orchestrator — not the upstream
+resolver, and round-based interpreter as shipped in the slang-workflows — not the upstream
 `@riktar/slang` reference language. Where the two differ, this document wins.
 
 > **Source of truth**
@@ -272,7 +272,7 @@ See [`server/test/fixtures/01-hello-world.slang`](server/test/fixtures/01-hello-
 
 ```slang
 agent <Name> {
-  mode: "<slug>"          -- mode slug (slang-orchestrator extension)
+  mode: "<slug>"          -- mode slug (slang-workflows extension)
   api_configuration: "<profile>"  -- optional: API-config profile by name (alias: model:)
   role: "<description>"   -- optional: system-prompt role definition
   tools: [group_a, ...]   -- optional: ToolGroup names, comma-separated
@@ -288,7 +288,7 @@ agent <Name> {
 
 | Meta field          | Required | Wire status | Value form              | Notes                                                                                                                                                                                                                                                                                                                |
 | ------------------- | -------- | ----------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mode`              | no\*     | ✅ wired    | string                  | Mode slug. slang-orchestrator extension (`mode: "code"`). Defaults to `"code"` at spawn if omitted.                                                                                                                                                                                                                       |
+| `mode`              | no\*     | ✅ wired    | string                  | Mode slug. slang-workflows extension (`mode: "code"`). Defaults to `"code"` at spawn if omitted.                                                                                                                                                                                                                       |
 | `tools`             | no       | ✅ wired    | list of ToolGroup names | **Only valid values are the 9 ToolGroup names:** `read`, `write`, `execute`, `browser`, `mcp`, `mode`, `subtasks`, `questions`, `uncategorized`. Restricts the spawned Task to these groups — see [Per-agent `tools:` restriction](#per-agent-tools-restriction). Bare identifiers, **not quoted.**                  |
 | `api_configuration` | no       | ✅ wired    | string                  | Selects the agent Task's API-configuration **profile by name** (per-task only; never activates it globally). Unknown name → falls back to the global profile. Threaded as `createTask({ initialApiConfigName })`. Stored on `AgentMeta.apiConfiguration`. **Deprecated alias:** `model:` parses into the same field. |
 | `role`              | no       | ✅ wired    | string                  | Injected into the agent Task's system prompt as `# Agent Role` (layered on top of the mode's `roleDefinition` for that task), and surfaced in peer resource descriptions. Threaded as `createTask({ agentRole })`. `${…}` placeholders resolve against flow params + the agent's bindings.                           |
@@ -723,9 +723,9 @@ On success:
   `when` conditions (`review_result.approved`, `review_result.score`, etc.).
 - The result is routed to the stake's recipients via the mailbox.
 
-### Semantic Assertions — `where` (slang-orchestrator extension)
+### Semantic Assertions — `where` (slang-workflows extension)
 
-> **slang-orchestrator only.** Not present in upstream slang. Rationale and the two-layer enforcement
+> **slang-workflows only.** Not present in upstream slang. Rationale and the two-layer enforcement
 > model are in the [output-contract design](DESIGN.md#output-contract-enforcement).
 
 The structural `output:` schema checks *shape* (fields + types) but not *meaning* — a result
@@ -886,15 +886,15 @@ param_meta     = 'param' ident '{' { 'description' ':' string } '}' ;
 agent          = 'agent' ident '{' { agent_meta } { operation } '}' ;
 agent_meta     = 'role'  ':' string
                | 'model' ':' string
-               | 'mode'  ':' string                          (* slang-orchestrator extension *)
+               | 'mode'  ':' string                          (* slang-workflows extension *)
                | 'tools' ':' '[' [ ident { ',' ident } ] ']'
-               | 'peers' ':' '[' [ agentref { ',' agentref } ] ']'  (* slang-orchestrator extension *)
+               | 'peers' ':' '[' [ agentref { ',' agentref } ] ']'  (* slang-workflows extension *)
                | 'retry' ':' number ;
 
 operation      = stake | await | commit | escalate | log | error | when | let | set | repeat ;
 stake          = 'stake' func_call [ '->' recipient { ',' recipient } ]
-                 [ 'if' expr ] [ 'output' ':' output_schema [ 'where' expr ] ]   (* 'where': slang-orchestrator extension *)
-                 { ( 'timeout' | 'retries' ) '(' expr ')' } ;   (* slang-orchestrator extension; idents, either order *)
+                 [ 'if' expr ] [ 'output' ':' output_schema [ 'where' expr ] ]   (* 'where': slang-workflows extension *)
+                 { ( 'timeout' | 'retries' ) '(' expr ')' } ;   (* slang-workflows extension; idents, either order *)
 await          = 'await' ident '<-' source { ',' source }
                  { ',' ident ':' expr } ;          (* options: parsed, unused *)
 commit         = 'commit' [ expr ] [ 'if' expr ] ;

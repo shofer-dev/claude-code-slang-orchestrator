@@ -499,7 +499,7 @@ class Parser {
 			output = this.parseOutputSchema()
 		}
 
-		// Optional `where <expr>` semantic assertion (slang-orchestrator extension). Parsed
+		// Optional `where <expr>` semantic assertion (slang-workflows extension). Parsed
 		// contextually as a bare `where` ident — like `timeout`/`retries` below — so it
 		// reserves no keyword and cannot break existing files. Only valid after `output:`.
 		let where: Expr | undefined

@@ -1,12 +1,12 @@
-# Slang Orchestrator — benchmark
+# Slang Workflows — benchmark
 
-Two-arm benchmark for `slang-orchestrator`. Mirrors the structure of the live-memory
+Two-arm benchmark for `slang-workflows`. Mirrors the structure of the live-memory
 benchmark (`../../live-memory/benchmark/`). Harness in [`harness/`](harness/), recorded
 runs + findings in [`results/`](results/).
 
 ## The claim (and why it's NOT tokens)
 
-Unlike live-memory (a token-cost play), slang-orchestrator's value is **deterministic,
+Unlike live-memory (a token-cost play), slang-workflows's value is **deterministic,
 reliable multi-agent coordination**. Per `DESIGN.md`, LLM-driven orchestration "may **skip
 steps, forget the review loop, or terminate early**." The slang executor is a **non-LLM
 state machine** — zero coordination LLM calls — so the orchestration is *provable*. The

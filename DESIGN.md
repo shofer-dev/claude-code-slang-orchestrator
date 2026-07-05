@@ -615,7 +615,7 @@ exactly like a structural failure (below). Pure expressions only — **no I/O**.
 > ([`slang_specs.md`](slang_specs.md) § Semantic Assertions). The vendored lexer/parser/
 > interpreter start identical to the upstream implementation and diverge only for clearly-marked extensions like
 > `where`, so the upstream shared spec stays untouched. Trade-off: the fork can drift from upstream
-> slang — keep extensions few, marked `(* slang-orchestrator extension *)`, and reconcile
+> slang — keep extensions few, marked `(* slang-workflows extension *)`, and reconcile
 > periodically.
 
 **Escape hatch — host predicates.** Invariants that need I/O ("the cited file exists", "the URL

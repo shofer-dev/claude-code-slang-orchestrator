@@ -1,4 +1,4 @@
-# Slang Orchestrator — benchmark results
+# Slang Workflows — benchmark results
 
 ## Smoke findings (real-run validation)
 

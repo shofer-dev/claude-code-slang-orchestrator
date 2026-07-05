@@ -1,5 +1,5 @@
 {
-  "name": "slang-orchestrator",
+  "name": "slang-workflows",
   "version": "0.1.0",
   "private": true,
   "description": "Claude Code plugin: deterministic .slang multi-agent workflow orchestrator.",

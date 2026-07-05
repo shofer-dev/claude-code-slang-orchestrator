@@ -25,7 +25,7 @@ flowchart TB
     You(["You"])
     CC["Claude Code<br/>top-level session"]
 
-    subgraph server["slang-orchestrator · MCP server"]
+    subgraph server["slang-workflows · MCP server"]
         direction TB
         SL["your .slang workflow<br/>agents · stakes · contracts · converge"]
         EX["slang executor<br/>deterministic · non-LLM state machine"]

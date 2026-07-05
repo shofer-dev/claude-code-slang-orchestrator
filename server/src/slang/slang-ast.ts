@@ -172,7 +172,7 @@ export interface StakeOp extends BaseNode {
 	condition?: Expr
 	output?: OutputSchema
 	/**
-	 * Optional semantic assertion over the result fields (slang-orchestrator extension):
+	 * Optional semantic assertion over the result fields (slang-workflows extension):
 	 * `output: { … } where <expr>`. Evaluated by the executor with the result fields in
 	 * scope (as bare idents), **after** the structural schema check; a false result is
 	 * treated as a contract failure and retried like a structural one. Pure expression —
