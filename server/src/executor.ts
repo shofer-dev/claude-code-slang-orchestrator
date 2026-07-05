@@ -290,12 +290,16 @@ export async function runWorkflow(
 					emit({ round: flowState.round, kind: "error", agent: name, detail: "escalate @Human but no handler configured" })
 					break
 				}
-				emit({ round: flowState.round, kind: "escalate", agent: name, detail: adv.op.reason })
+				// Interpolate `${param}` / `${binding}` in the human-facing reason + form field
+				// descriptions (same scope as stake prompts) — they're built from flow params and
+				// awaited values, so a raw `${design_path}` must not leak to the user.
+				const reason = adv.op.reason ? interpolate(adv.op.reason, state, flowState) : undefined
+				emit({ round: flowState.round, kind: "escalate", agent: name, detail: reason })
 				const answer = await opts.onEscalate({
 					agent: name,
-					reason: adv.op.reason,
+					reason,
 					choices: adv.op.choices,
-					form: adv.op.form,
+					form: adv.op.form?.map((f) => (f.description ? { ...f, description: interpolate(f.description, state, flowState) } : f)),
 				})
 				// Deliver the human's answer to the agent as mail from @Human; the agent's
 				// `await … <- @Human` consumes it next time it advances.

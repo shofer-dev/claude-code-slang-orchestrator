@@ -15,6 +15,7 @@ import { analyzeSource, listWorkflows, resolveWorkflow, validateWorkflowFile } f
 import { runWorkflow, type EscalationRequest, type WorkflowEvent } from "./executor.js"
 import { AgentSdkDispatcher } from "./agent-sdk-dispatcher.js"
 import { eventsToSequenceDiagram, serializeFlowState, topologyToMermaid, type FlowState } from "./slang/slang-types.js"
+import type { FlowParam } from "./slang/slang-ast.js"
 
 const VERSION = "0.1.2"
 
@@ -104,6 +105,39 @@ function buildServer(cwd: string): McpServer {
 		return String((result.content as Record<string, unknown>).answer ?? "")
 	}
 
+	// Collect declared flow params that are REQUIRED (no `default`) and weren't supplied, by
+	// eliciting them from the user before the run starts — so a synchronous run_workflow is
+	// self-collecting (a missing `${param}` would otherwise be left verbatim in agent prompts).
+	// Reuses the same MCP elicitation as `escalate @Human`. Returns the merged params, or null
+	// if the user cancelled/declined.
+	const elicitMissingParams = async (
+		flowParams: FlowParam[] | undefined,
+		provided: Record<string, unknown>,
+	): Promise<Record<string, unknown> | null> => {
+		const missing = (flowParams ?? []).filter((p) => p.default === undefined && !(p.name in provided))
+		if (!missing.length) return provided
+		const properties: Record<string, unknown> = {}
+		const required: string[] = []
+		for (const p of missing) {
+			const t = p.paramType === "number" ? "number" : p.paramType === "boolean" ? "boolean" : "string"
+			const schema: Record<string, unknown> = { type: t }
+			if (p.description) schema.description = p.description
+			if (p.options?.length) schema.enum = p.options // dropdown/radio; multi-select isn't representable in elicitation
+			if (t === "number") {
+				if (p.min !== undefined) schema.minimum = p.min
+				if (p.max !== undefined) schema.maximum = p.max
+			}
+			properties[p.name] = schema
+			required.push(p.name)
+		}
+		const result = await server.server.elicitInput({
+			message: `This workflow needs input before it can start: ${missing.map((p) => p.name).join(", ")}.`,
+			requestedSchema: { type: "object", properties, required },
+		} as Parameters<typeof server.server.elicitInput>[0])
+		if (result.action !== "accept" || !result.content) return null
+		return { ...provided, ...(result.content as Record<string, unknown>) }
+	}
+
 	server.registerTool(
 		"list_workflows",
 		{
@@ -165,7 +199,7 @@ function buildServer(cwd: string): McpServer {
 				"Parse and run a .slang workflow to completion, dispatching each agent through the Claude " +
 				"Agent SDK and validating results against output contracts. Identify it by `name` or `path`; " +
 				"pass flow `params` as an object. Returns the final flow status and each agent's output. " +
-				"Rejects parse/static-analysis errors before running. Default runs synchronously (returns the final status + each agent's output). Pass background:true to start the run and return a workflow_id immediately, then poll get_trace/get_topology/get_workflow_state to watch it live; @Human escalation only works in synchronous runs.",
+				"Rejects parse/static-analysis errors before running. Required params (declared without a default) that you don't pass are prompted for via elicitation in synchronous runs. Default runs synchronously (returns the final status + each agent's output). Pass background:true to start the run and return a workflow_id immediately, then poll get_trace/get_topology/get_workflow_state to watch it live; @Human escalation and param prompting only work in synchronous runs.",
 			inputSchema: {
 				name: z.string().optional().describe("Flow name or .slang filename."),
 				path: z.string().optional().describe("Absolute path to a .slang file (overrides `name`)."),
@@ -195,6 +229,17 @@ function buildServer(cwd: string): McpServer {
 			if (hardErrors.length) return errorResult(`Static-analysis errors (fix before running):\n${hardErrors.join("\n")}`)
 			const flow = ast.flows[0]
 			if (!flow) return errorResult("No flow found in source.")
+			// Collect required-but-missing params before starting. Synchronous runs elicit them
+			// (the tool call is open); background runs can't elicit, so they must be passed complete.
+			let runParams: Record<string, unknown> = params ?? {}
+			if (background) {
+				const missing = (flow.params ?? []).filter((p) => p.default === undefined && !(p.name in runParams))
+				if (missing.length) return errorResult(`Missing required params for a background run: ${missing.map((p) => p.name).join(", ")}. Pass them in \`params\`, or run synchronously to be prompted.`)
+			} else {
+				const collected = await elicitMissingParams(flow.params, runParams)
+				if (collected === null) return errorResult("Cancelled: required workflow parameters were not provided.")
+				runParams = collected
+			}
 			const dispatcher = new AgentSdkDispatcher()
 			const workflowId = randomUUID()
 			const events: WorkflowEvent[] = []
@@ -210,13 +255,13 @@ function buildServer(cwd: string): McpServer {
 				onEscalate: background ? undefined : onEscalate,
 			}
 			if (background) {
-				void runWorkflow(flow, params ?? {}, dispatcher, runOpts).catch((e) => {
+				void runWorkflow(flow, runParams, dispatcher, runOpts).catch((e) => {
 					events.push({ round: -1, kind: "error", detail: `run failed: ${(e as Error).message}` })
 				})
 				return jsonResult({ workflow_id: workflowId, status: "running", poll: ["get_trace", "get_topology", "get_workflow_state"] })
 			}
 			try {
-				const { result } = await runWorkflow(flow, params ?? {}, dispatcher, runOpts)
+				const { result } = await runWorkflow(flow, runParams, dispatcher, runOpts)
 				return jsonResult({ workflow_id: workflowId, ...result })
 			} catch (e) {
 				return errorResult(`Run failed: ${(e as Error).stack ?? (e as Error).message}`)

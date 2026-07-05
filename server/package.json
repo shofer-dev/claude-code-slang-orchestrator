@@ -39,7 +39,9 @@
     "typecheck": "tsc --noEmit",
     "build": "esbuild src/main.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/main.js --banner:js='#!/usr/bin/env node' && cp src/*.mjs dist/ && chmod +x dist/main.js",
     "prepublishOnly": "npm run build",
-    "test": "node --test --import tsx test/*.test.ts"
+    "test": "node --test --import tsx test/*.test.ts",
+    "test:elicitation": "node test/elicitation-live.mjs",
+    "test:param-elicit": "node test/param-elicit-live.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.187",

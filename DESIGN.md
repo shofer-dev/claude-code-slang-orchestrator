@@ -41,6 +41,8 @@ with plugin extensions — is [`slang_specs.md`](slang_specs.md) in this folder.
 | Session resume (one agent = one session across stakes) | ✅ | real (recalled a secret across stakes) |
 | `escalate @Human` executor logic | ✅ | unit (fake handler) |
 | `escalate @Human` via MCP elicitation | ✅ mechanism verified | scripted MCP client round-trips `elicitInput` on `08-escalation` (both branches → `approved`/`rejected`) — `server/test/elicitation-live.mjs`; live Claude Code UI rendering still worth a manual look |
+| Pre-flight **param elicitation** (`run_workflow` prompts for required params without a default) | ✅ | `server/test/param-elicit-live.mjs` (elicited + interpolated; supplied → no prompt) |
+| Interpolation of `escalate` reason / form-field descriptions (`${param}`/`${binding}`) | ✅ | `param-elicit-live.mjs` (was a bug: reasons were passed raw; now fixed) |
 
 **Deviations from the design below, discovered during implementation:**
 
