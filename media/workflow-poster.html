@@ -1,0 +1,75 @@
+<title>slang-workflows — a .slang workflow</title>
+<style>
+  :root{
+    --ground:#08090f; --term:#0c0d14; --bar:#14151f; --line:#242636;
+    --ink:#e9ecf3; --muted:#8b90a6; --faint:#5a6076;
+    --violet:#8b7cf6; --violet-soft:#a394f7; --green:#7fd9a3; --str:#8fd98f;
+    --cyan:#5fb6d6; --amber:#e0b46b; --good:#57c98a;
+  }
+  *{box-sizing:border-box} html,body{margin:0}
+  body{background:radial-gradient(900px 500px at 50% -10%, rgba(139,124,246,.07), transparent 60%),var(--ground);
+    color:var(--ink); font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    -webkit-font-smoothing:antialiased; display:flex; justify-content:center; padding:34px 20px;}
+  .term{width:100%; max-width:860px; background:var(--term); border:1px solid var(--line); border-radius:12px; overflow:hidden;
+    box-shadow:0 26px 80px -30px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.03);}
+  .titlebar{display:flex; align-items:center; gap:8px; padding:11px 14px; background:var(--bar); border-bottom:1px solid var(--line)}
+  .dot{width:11px;height:11px;border-radius:50%} .r{background:#f0655b}.y{background:#f0bd4a}.g{background:#5fca6a}
+  .titlebar .name{margin-left:8px; color:var(--faint); font-size:12px} .titlebar .name b{color:var(--muted); font-weight:600}
+  .body{padding:20px 24px 6px; font-size:13.5px; line-height:1.62}
+  pre.src{margin:0; white-space:pre; overflow-x:auto; font-size:13.5px; line-height:1.6}
+  .cm{color:var(--faint); font-style:italic}
+  .kw{color:var(--violet)} .id{color:var(--ink)} .st{color:var(--str)} .at{color:var(--cyan)}
+  .ty{color:var(--amber)} .pu{color:var(--faint)} .fn{color:var(--violet-soft)} .ip{color:var(--cyan)}
+  .foot{margin:14px -24px 0; padding:13px 24px; border-top:1px solid var(--line); background:var(--bar);
+    display:flex; gap:8px 22px; flex-wrap:wrap; font-size:12px; color:var(--muted)}
+  .foot b{color:var(--good)} .foot .k{color:var(--faint)}
+  .caption{max-width:860px; margin:14px auto 0; color:var(--faint); font-size:12px; text-align:center}
+  .caption b{color:var(--muted)}
+</style>
+
+<div>
+<div class="term">
+  <div class="titlebar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+    <span class="name"><b>.claude/workflows/</b>pipeline.slang</span></div>
+  <div class="body">
+<pre class="src"><span class="cm">-- Multi-agent pipeline: Producer → Worker → @out, awaited value interpolated.</span>
+<span class="kw">flow</span> <span class="st">"pipeline"</span> <span class="pu">{</span>
+  <span class="kw">title</span><span class="pu">:</span> <span class="st">"Two-Stage Pipeline"</span>
+
+  <span class="kw">agent</span> <span class="fn">Producer</span> <span class="pu">{</span>
+    <span class="kw">role</span><span class="pu">:</span> <span class="st">"You return ONLY JSON."</span>
+
+    <span class="kw">stake</span> <span class="fn">produce</span><span class="pu">(</span>
+      <span class="id">task</span><span class="pu">:</span> <span class="st">"Output the number 21."</span>
+    <span class="pu">)</span> <span class="pu">-></span> <span class="at">@Worker</span>
+      <span class="kw">output</span><span class="pu">:</span> <span class="pu">{</span> <span class="id">n</span><span class="pu">:</span> <span class="ty">"number"</span> <span class="pu">}</span>
+
+    <span class="kw">commit</span>
+  <span class="pu">}</span>
+
+  <span class="kw">agent</span> <span class="fn">Worker</span> <span class="pu">{</span>
+    <span class="kw">role</span><span class="pu">:</span> <span class="st">"You return ONLY JSON."</span>
+
+    <span class="kw">await</span> <span class="id">data</span> <span class="pu"><-</span> <span class="at">@Producer</span>
+
+    <span class="kw">stake</span> <span class="fn">consume</span><span class="pu">(</span>
+      <span class="id">task</span><span class="pu">:</span> <span class="st">"Double this number: <span class="ip">${data.n}</span>"</span>
+    <span class="pu">)</span> <span class="pu">-></span> <span class="at">@out</span>
+      <span class="kw">output</span><span class="pu">:</span> <span class="pu">{</span> <span class="id">doubled</span><span class="pu">:</span> <span class="ty">"number"</span> <span class="pu">}</span>
+
+    <span class="kw">commit</span>
+  <span class="pu">}</span>
+
+  <span class="kw">converge</span> <span class="kw">when</span><span class="pu">:</span> <span class="at">@Producer</span><span class="pu">.</span><span class="id">committed</span> <span class="pu">&&</span> <span class="at">@Worker</span><span class="pu">.</span><span class="id">committed</span>
+  <span class="kw">budget</span><span class="pu">:</span> <span class="fn">rounds</span><span class="pu">(</span><span class="ty">10</span><span class="pu">)</span>
+<span class="pu">}</span></pre>
+    <div class="foot">
+      <span><b>✓</b> parsed</span>
+      <span><b>✓</b> static analysis <span class="k">— no deadlocks · no unknown refs · no orphan outputs</span></span>
+      <span><b>✓</b> terminates <span class="k">(budget)</span></span>
+      <span class="k">validated before a token is spent</span>
+    </div>
+  </div>
+</div>
+<p class="caption">A <b>typed, declarative</b> workflow — the whole collaboration in one versioned file. A non-LLM executor runs it and enforces the <b>output contracts</b>, routing, and <b>convergence</b>.</p>
+</div>

@@ -1,0 +1,133 @@
+<title>slang-workflows — how it works + what's guaranteed</title>
+<style>
+  :root{
+    --ground:#0a0b12; --card:#0f1018; --panel:#161824; --panel2:#1c1f2e;
+    --line:#272a3a; --ink:#e9ecf3; --muted:#8b90a6; --faint:#5a6076;
+    --violet:#8b7cf6; --violet-dim:#4a3f7a; --violet-soft:#a394f7;
+    --good:#57c98a; --bad:#d98aa0; --cyan:#5fb6d6; --track:#2a2d3f;
+  }
+  *{box-sizing:border-box} html,body{margin:0}
+  body{
+    background:var(--ground); color:var(--ink);
+    font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    -webkit-font-smoothing:antialiased; display:flex; justify-content:center; padding:34px 20px; line-height:1.5;
+  }
+  .card{
+    width:100%; max-width:1140px;
+    background:radial-gradient(1200px 340px at 80% -8%, rgba(139,124,246,.10), transparent 60%), var(--card);
+    border:1px solid var(--line); border-radius:16px; padding:34px 40px 30px;
+    box-shadow:0 24px 70px -30px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.03);
+  }
+  .banner{color:var(--violet); font-size:12px; line-height:1.08; margin:0; white-space:pre; overflow-x:auto; text-shadow:0 0 18px rgba(139,124,246,.28);}
+  .tagline{color:var(--muted); margin:12px 0 0; font-size:14px;}
+  .tagline b{color:var(--ink); font-weight:600}
+  .rule{height:1px; background:linear-gradient(90deg,var(--line),transparent); margin:24px 0 20px}
+  .eyebrow{text-transform:uppercase; letter-spacing:.22em; font-size:11px; color:var(--faint); margin:0 0 16px; display:flex; gap:10px; align-items:baseline; flex-wrap:wrap}
+  .eyebrow .scope{color:var(--violet); letter-spacing:.14em}
+  /* how it works */
+  .flow{display:flex; align-items:stretch; overflow-x:auto}
+  .node{flex:1 1 0; min-width:190px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:15px 16px}
+  .node.ex{border-color:var(--violet-dim); background:linear-gradient(180deg,var(--panel2),var(--panel))}
+  .node .k{font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--faint); margin:0 0 8px}
+  .node .t{font-size:15px; color:var(--ink); margin:0 0 6px; font-weight:600}
+  .node.ex .t{color:var(--violet-soft)}
+  .node .d{font-size:12.5px; color:var(--muted); margin:0}
+  .node code{color:var(--cyan); font-size:12px}
+  .arrow{flex:0 0 96px; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:5px; padding:0 4px; text-align:center}
+  .arrow .g{font-size:17px; color:var(--violet); letter-spacing:-2px}
+  .arrow .lab{font-size:10.5px; color:var(--muted); line-height:1.3}
+  /* guarantees chips */
+  .chips{display:grid; grid-template-columns:repeat(5,1fr); gap:10px}
+  .chip{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 12px}
+  .chip .h{color:var(--violet-soft); font-size:12.5px; font-weight:700; margin:0 0 5px; display:flex; align-items:center; gap:6px}
+  .chip .h::before{content:"✓"; color:var(--good); font-weight:800}
+  .chip .b{color:var(--muted); font-size:11px; margin:0; line-height:1.45}
+  /* coordination comparison */
+  .cmp{display:grid; gap:12px; margin-top:4px}
+  .row{display:grid; grid-template-columns:230px 1fr 150px; align-items:center; gap:16px}
+  .row .name{font-size:13px; color:var(--ink)}
+  .row .name .sub{display:block; color:var(--faint); font-size:11px; margin-top:2px}
+  .track{position:relative; height:24px; background:var(--track); border-radius:6px; overflow:hidden; border:1px solid var(--line)}
+  .fill{position:absolute; inset:0 auto 0 0; border-radius:5px 0 0 5px}
+  .fill.zero{background:linear-gradient(90deg,#3f7a5a,var(--good))}
+  .fill.big{background:linear-gradient(90deg,#7a5a86,var(--bad))}
+  .val{text-align:right; font-size:15px; font-weight:700; font-variant-numeric:tabular-nums}
+  .val.good{color:var(--good)} .val.bad{color:var(--bad)}
+  .val small{display:block; font-size:10px; color:var(--faint); font-weight:500; letter-spacing:.03em; margin-top:1px}
+  .note{font-size:11.5px; color:var(--muted); margin:18px 0 0; line-height:1.6}
+  .note b{color:var(--ink); font-weight:600}
+  .foot{display:flex; justify-content:space-between; align-items:center; gap:18px; flex-wrap:wrap; margin-top:24px; padding-top:20px; border-top:1px solid var(--line)}
+  .install{font-size:13px; color:var(--muted)}
+  .install code{color:var(--violet-soft); background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:4px 9px; font-size:12.5px}
+  .badges{font-size:11.5px; color:var(--faint); display:flex; gap:14px; flex-wrap:wrap}
+  .badges span::before{content:"● "; color:var(--violet-dim)}
+</style>
+
+<div class="card">
+  <pre class="banner">███████╗██╗      █████╗ ███╗   ██╗ ██████╗
+██╔════╝██║     ██╔══██╗████╗  ██║██╔════╝
+███████╗██║     ███████║██╔██╗ ██║██║  ███╗
+╚════██║██║     ██╔══██║██║╚██╗██║██║   ██║
+███████║███████╗██║  ██║██║ ╚████║╚██████╔╝
+╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝</pre>
+  <p class="tagline"><b>Provable, declarative multi-agent workflows for Claude Code.</b> You declare the collaboration in a typed <code style="color:var(--cyan)">.slang</code> file; a <b>non-LLM executor</b> runs it — enforcing contracts, tool-scoping, and termination — instead of leaving coordination to the model.</p>
+
+  <div class="rule"></div>
+  <p class="eyebrow">How it works</p>
+  <div class="flow">
+    <div class="node">
+      <p class="k">You declare</p>
+      <p class="t">.slang workflow</p>
+      <p class="d">Typed agents, stakes, <code>output</code> contracts, routing, and a <code>converge</code> condition — versioned, human-readable.</p>
+    </div>
+    <div class="arrow"><div class="lab">parsed once<br>+ static-analyzed</div><div class="g">→</div></div>
+    <div class="node ex">
+      <p class="k">The runtime enforces</p>
+      <p class="t">slang executor</p>
+      <p class="d">A <b>deterministic, non-LLM</b> state machine: dispatch → contract-check → route → converge. Makes <b>every</b> coordination decision.</p>
+    </div>
+    <div class="arrow"><div class="lab">dispatch stake<br>typed result ⇄ retry</div><div class="g">⇄</div></div>
+    <div class="node">
+      <p class="k">One session per agent</p>
+      <p class="t">Agent SDK sessions</p>
+      <p class="d">Your declared agents (Architect / Developer / Reviewer…), resumed across rounds. Claude Code only <b>triggers &amp; observes</b>.</p>
+    </div>
+  </div>
+
+  <div class="rule"></div>
+  <p class="eyebrow">What the runtime guarantees <span class="scope">enforced, not prompted</span></p>
+  <div class="chips">
+    <div class="chip"><p class="h">Static analysis</p><p class="b">Deadlocks, unknown refs, orphan outputs — caught <i>before</i> a token is spent.</p></div>
+    <div class="chip"><p class="h">Typed contracts</p><p class="b"><code style="color:var(--cyan)">output:&#123;…&#125; where &lt;expr&gt;</code> — structural + semantic; invalid → retry, not propagate.</p></div>
+    <div class="chip"><p class="h">Tool-scoping</p><p class="b"><code style="color:var(--cyan)">write_paths</code> / <code style="color:var(--cyan)">deny</code> per agent via the SDK's <code style="color:var(--cyan)">canUseTool</code>.</p></div>
+    <div class="chip"><p class="h">Provable termination</p><p class="b"><code style="color:var(--cyan)">budget: rounds(N)</code> + per-stake timeouts — every run finishes.</p></div>
+    <div class="chip"><p class="h">Auto diagrams</p><p class="b">Every run renders a Mermaid <b>topology</b> + sequence <b>trace</b>.</p></div>
+  </div>
+
+  <div class="rule"></div>
+  <p class="eyebrow">Coordination cost <span class="scope">per run · agent work excluded · see benchmark/</span></p>
+  <div class="cmp">
+    <div class="row">
+      <div class="name">slang executor<span class="sub">deterministic code — 0 coordination calls</span></div>
+      <div class="track"><div class="fill zero" style="width:1.5%"></div></div>
+      <div class="val good">0<small>LLM TOKENS · PROTOCOL GUARANTEED</small></div>
+    </div>
+    <div class="row">
+      <div class="name">native dynamic workflows<span class="sub">LLM-authored JS, then runs deterministically</span></div>
+      <div class="track"><div class="fill zero" style="width:1.5%"></div></div>
+      <div class="val good">~0<small>BUT NOT STATICALLY CHECKED / SCOPED</small></div>
+    </div>
+    <div class="row">
+      <div class="name">turn-by-turn LLM coordinator<span class="sub">a model coordinates each step in prose</span></div>
+      <div class="track"><div class="fill big" style="width:100%"></div></div>
+      <div class="val bad">98–154k<small>LLM TOKENS / RUN · CAN DRIFT</small></div>
+    </div>
+  </div>
+
+  <p class="note"><b>Honest framing.</b> slang and native dynamic workflows <i>both</i> reach real, working implementations at ~0 coordination cost — the difference is what's <b>guaranteed</b>: slang's structure is analyzable <i>before</i> it runs, tool-scoped and contract-checked <i>while</i> it runs, and rendered as diagrams <i>after</i> — versus LLM-authored JS you have to trust. Turn-by-turn LLM coordination additionally risks drift (a measured batch showed <b>silent false-convergence</b> — reports success, ships nothing). Reach for slang when you want <b>guarantees &amp; auditability</b>, not "the model coordinated some subagents this time."</p>
+
+  <div class="foot">
+    <div class="install">install &nbsp;<code>/plugin install slang-workflows@shofer-slang-orchestrator</code></div>
+    <div class="badges"><span>typed .slang</span><span>non-LLM executor</span><span>enforced tool-scoping</span><span>provable termination</span></div>
+  </div>
+</div>

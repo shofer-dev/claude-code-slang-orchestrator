@@ -1,3 +1,14 @@
+```
+███████╗██╗      █████╗ ███╗   ██╗ ██████╗
+██╔════╝██║     ██╔══██╗████╗  ██║██╔════╝
+███████╗██║     ███████║██╔██╗ ██║██║  ███╗
+╚════██║██║     ██╔══██║██║╚██╗██║██║   ██║
+███████║███████╗██║  ██║██║ ╚████║╚██████╔╝
+╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝
+     provable, declarative multi-agent workflows for Claude Code
+     a non-LLM executor runs your typed .slang files
+```
+
 # slang-workflows
 
 Run **provable**, `.slang`-driven **multi-agent workflows** inside Claude Code.
@@ -17,6 +28,8 @@ as **Mermaid topology + trace diagrams**. See the [benchmark](benchmark/) for th
 > plugin brings it to Claude Code.
 
 > Design and rationale: [`DESIGN.md`](DESIGN.md). Language reference: [`slang_specs.md`](slang_specs.md). Privacy: [`PRIVACY.md`](PRIVACY.md).
+
+![slang-workflows running implement-feature.slang deterministically — the guaranteed review loop, 0 coordination LLM tokens, converged](media/slang-workflows.gif)
 
 ## How it works
 

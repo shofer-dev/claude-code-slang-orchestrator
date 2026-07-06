@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Faithful replay of a REAL token-free implement-feature.slang run (executor via FakeDispatcher,
+# captured deterministically — 10 rounds, 0 coordination LLM calls). See media/README.md.
+V=$'\033[38;5;141m'; G=$'\033[38;5;72m'; RD=$'\033[38;5;174m'; C=$'\033[38;5;80m'; A=$'\033[38;5;252m'; D=$'\033[38;5;244m'; B=$'\033[1m'; R=$'\033[0m'
+p(){ printf "$@"; }
+p '\n'
+p '%s✓%s parsed   %s✓%s static analysis:%s no deadlocks · no unknown refs · no orphan outputs%s\n' "$G" "$R" "$G" "$R" "$D" "$R"
+sleep 0.7
+p '\n%s▶ %simplement-feature%s   %sArchitect%s → %sDeveloper%s ⇄ %sReviewer%s   ·   %sdeterministic executor%s\n\n' "$V" "$B" "$R" "$V" "$R" "$V" "$R" "$V" "$R" "$D" "$R"
+sleep 0.5
+p '%s  r1 %s  %sArchitect%s  drafts design   →  escalate %s@Human%s            %s✓ approved%s\n' "$D" "$R" "$V" "$A" "$C" "$A" "$G" "$R"; sleep 0.5
+p '%s  r2 %s  %sArchitect%s  → @Developer  implement       %sDeveloper%s → slice done\n' "$D" "$R" "$V" "$A" "$V" "$A"; sleep 0.5
+p '%s  r4 %s  %sReviewer%s   → @Architect  %s✗ changes requested%s: missing 0-byte edge case\n' "$D" "$R" "$V" "$A" "$RD" "$A"; sleep 0.6
+p '%s  r5 %s  %sDeveloper%s  → @Architect  fixed\n' "$D" "$R" "$V" "$A"; sleep 0.5
+p '%s  r6 %s  %sReviewer%s   → @Architect  %s✓ approved%s\n' "$D" "$R" "$V" "$G" "$R"; sleep 0.5
+p '%s  r8 %s  final review %s✓%s    %sDeveloper%s %s✓ committed%s    %sReviewer%s %s✓ committed%s\n' "$D" "$R" "$G" "$R" "$V" "$G" "$R" "$V" "$G" "$R"; sleep 0.5
+p '%s  r10%s  %sArchitect%s %s✓ committed%s     →     %s🎉 converged%s\n' "$D" "$R" "$V" "$G" "$R" "$G$B" "$R"; sleep 0.7
+p '\n%s  coordination LLM tokens: %s0%s%s   ·   every routed result contract-checked%s\n' "$D" "$G$B" "$R" "$D" "$R"
+p '%s  protocol design→implement→review→done: %sguaranteed%s%s   ·   always terminates%s\n' "$D" "$G" "$R" "$D" "$R"
